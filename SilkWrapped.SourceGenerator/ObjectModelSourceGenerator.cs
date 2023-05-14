@@ -12,8 +12,13 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace SilkWrapped.SourceGenerator;
 [Generator(LanguageNames.CSharp)]
-public class ObjectModelSourceGenerator : IIncrementalGenerator
+public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
 {
+    public void Dispose()
+    {
+        throw new NotImplementedException();
+    }
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var splitChars = new[] { ';' };

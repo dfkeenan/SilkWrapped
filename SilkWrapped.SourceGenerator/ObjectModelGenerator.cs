@@ -57,15 +57,66 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
     public IEnumerator<(string Name, string Source)> GetEnumerator()
     {
-        if(apiType is null) yield break;
-        if(rootNamespace is null) yield break;  
+        if (apiType is null) yield break;
+        if (rootNamespace is null) yield break;
         if (cancellationToken.IsCancellationRequested) yield break;
 
         CollectTypeInformation();
 
+        yield return GetOutput(GetApiContainer());
+
+        foreach (var handleType in handleTypes)
+        {
+            yield return GetOutput(GetWrapper(handleType));
+        }
+
+    }
+
+    private ClassDeclarationSyntax GetApiContainer()
+    {
+        PropertyDeclarationSyntax apiProperty = PropertyDeclaration(apiType!, "Core", SyntaxKind.PublicKeyword);
+        var apiContainer = ClassDeclaration("ApiContainer", SyntaxKind.PublicKeyword)
+                                .AddDefaultConstructor(b => b.AddAssignmentStatement("Core", ParseExpression(apiType.ToDisplayString() + ".GetApi()")))
+
+                                .AddMembers(apiProperty)
+                                .AddMembers(extensionTypes.Select(e => PropertyDeclaration(e, e.Name, SyntaxKind.PublicKeyword).WithSetter()).ToArray())
+                                .AddDispose(b => b.AddStatements(extensionTypes.Select(e => InvokeDispose(e.Name, true)).Append(InvokeDispose("Core")).ToArray()));
+        return apiContainer;
+    }
+
+    private ClassDeclarationSyntax GetWrapper(ITypeSymbol handleType)
+    {
+        var name = GetWrapperName(handleType);
+
+        var constructionMethods = this.constructionMethods[handleType];
+        //var isRootObject = constructionMethods.SelectMany(m => m.Parameters.Select(p => p.Type)).All(t => handleTypes.Contains(t) == false);
 
 
-        yield break;
+        foreach (var item in constructionMethods)
+        {
+
+        }
+
+
+        var declaration = ClassDeclaration(name, SyntaxKind.PublicKeyword)
+                            .AddMembers(PropertyDeclaration("ApiContainer", "Api"),
+                                        PropertyDeclaration(handleType,"Handle", SyntaxKind.PublicKeyword))
+
+
+                            .AddDispose(b => b)
+
+                            .AddMembers(ConversionOperatorDeclaration(Token(SyntaxKind.ImplicitKeyword), TypeSyntax(handleType))
+                                            .WithModifiers(SyntaxKind.PublicKeyword,SyntaxKind.StaticKeyword)
+                                            .WithParameterList(ParameterList(SingletonSeparatedList<ParameterSyntax>(Parameter(Identifier(CamelCase(name))).WithType(IdentifierName(name)))))
+                                            .WithExpressionBody(
+                                                    ArrowExpressionClause(
+                                                    MemberAccessExpression(
+                                                        SyntaxKind.SimpleMemberAccessExpression,
+                                                        IdentifierName(CamelCase(name)), IdentifierName("Handle"))))
+                                            .WithSemicolonToken(Token(SyntaxKind.SemicolonToken)))
+                            ;
+
+        return declaration;
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -89,11 +140,15 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     {
         if(cancellationToken.IsCancellationRequested) return;
 
+        var typeSymbols = typeSymbol.ContainingNamespace.GetMembers().OfType<ITypeSymbol>().Where(t => t.TypeKind == TypeKind.Struct).ToList();
+
+
         var methodSymbols = from method in typeSymbol.GetMembers().OfType<IMethodSymbol>()
                           where method.DeclaredAccessibility == Accessibility.Public &&
                                 method.MethodKind == MethodKind.Ordinary &&
+                                method.IsStatic == false &&
                                 method.Parameters.Length > 0 &&
-                                Equals(typeSymbol, method.ReturnType)
+                                Equals(typeSymbol, method.ReturnType) == false
                             select method;
 
         foreach (var methodSymbol in methodSymbols)
@@ -110,10 +165,14 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
             else if (IsDisposalMethod(methodSymbol))
             {
                 disposalMethods.Add(firstParamType, methodSymbol);
+                if (IsStructure(firstParamType) && Equals(GetNamespace(firstParamType), GetNamespace(typeSymbol)))
+                    handleTypes.Add(firstParamType);
             }
             else
             {
                 methods.Add(firstParamType, methodSymbol);
+                if (IsStructure(firstParamType) && Equals(GetNamespace(firstParamType), GetNamespace(typeSymbol)))
+                    handleTypes.Add(firstParamType);
             }
 
         }
@@ -128,12 +187,8 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
             if (returnType is null) continue;
 
-            if (returnType is IPointerTypeSymbol pointerTypeSymbol)
-            {
-                returnType = pointerTypeSymbol.PointedAtType;
-            }
 
-            if (Equals(returnType.ContainingNamespace, typeSymbol.ContainingNamespace) == false)
+            if (Equals(GetNamespace(returnType), GetNamespace(typeSymbol)) == false)
                 continue;
 
             if (constructionMethods.ContainsKey(methodSymbol.ReturnType))
@@ -154,6 +209,26 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private bool IsHandleType(ITypeSymbol typeSymbol)
         => handleTypes.Contains(typeSymbol);
 
+    private INamespaceSymbol GetNamespace(ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
+        {
+            typeSymbol = pointerTypeSymbol.PointedAtType;
+        }
+
+        return typeSymbol.ContainingNamespace;
+    }
+
+    private bool IsStructure(ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
+        {
+            typeSymbol = pointerTypeSymbol.PointedAtType;
+        }
+
+        return typeSymbol.TypeKind == TypeKind.Structure;
+    }
+
     private bool Equals(ISymbol symbol, ISymbol other)
     {
         return symbol.Equals(other, SymbolEqualityComparer.Default);
@@ -172,6 +247,11 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
     private string GetWrapperName(ITypeSymbol typeSymbol)
         => string.Format(wrapperNameFormatString, GetName(typeSymbol));
+
+    private (string Name, string Source) GetOutput(TypeDeclarationSyntax typeDeclaration)
+    {
+        return (typeDeclaration.Identifier.Text, rootNamespace!.WithMembers(new SyntaxList<MemberDeclarationSyntax>(typeDeclaration)).NormalizeWhitespace().ToFullString());
+    }
 }
 
 

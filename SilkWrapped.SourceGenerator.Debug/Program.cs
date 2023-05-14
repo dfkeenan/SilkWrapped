@@ -5,13 +5,15 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.MSBuild;
 using SilkWrapped.SourceGenerator;
 using SilkWrapped.SourceGenerator.Debug;
 
 var targetProjectPath = @"..\..\..\..\SilkWrapped.WebGPU\SilkWrapped.WebGPU.csproj";
 
-var vs = MSBuildLocator.RegisterDefaults();
+MSBuildLocator.RegisterDefaults();
+
 using var workspace = MSBuildWorkspace.Create();
 
 var project = await workspace.OpenProjectAsync(targetProjectPath);
