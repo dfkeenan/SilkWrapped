@@ -34,6 +34,7 @@ var config = new TestAnalyzerConfigOptionsProvider()
     {
         ["RootNamespace"] = "SilkWrapped.WebGPU",
         ["SilkObjectModel_API"] = "Silk.NET.WebGPU.WebGPU",
+        ["SilkObjectModel_APIOwnerTypeName"] = "Silk.NET.WebGPU.Instance",
         ["SilkObjectModel_Extensions"] = "Silk.NET.WebGPU.Extensions.Dawn.Dawn;Silk.NET.WebGPU.Extensions.WGPU.Wgpu",
     }
 };

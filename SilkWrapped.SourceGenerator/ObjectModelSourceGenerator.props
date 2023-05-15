@@ -1,6 +1,12 @@
 ﻿<Project>
     <ItemGroup>
         <CompilerVisibleProperty Include="RootNamespace" />
-        <CompilerVisibleProperty Include="SilkObjectModel_API" />
+      <CompilerVisibleProperty Include="SilkObjectModel_API" />
+      <CompilerVisibleProperty Include="SilkObjectModel_APIOwnerTypeName" />
+      <CompilerVisibleProperty Include="SilkObjectModel_Extensions" />
+      <CompilerVisibleProperty Include="SilkObjectModel_WrapperNameFormatString" />
+      <CompilerVisibleProperty Include="SilkObjectModel_ConstructionMethodNamePattern" />
+      <CompilerVisibleProperty Include="SilkObjectModel_DisposalMethodNamePattern" />
+      <CompilerVisibleProperty Include="SilkObjectModel_HandleTypeNameExclusionPattern" />
     </ItemGroup>
 </Project>

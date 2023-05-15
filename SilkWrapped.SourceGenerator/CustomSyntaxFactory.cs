@@ -42,12 +42,20 @@ internal static class CustomSyntaxFactory
 
     public static BlockSyntax AddAssignmentStatement(this BlockSyntax block, string propertyName, ExpressionSyntax expression)
     {
-        return block.AddStatements(ExpressionStatement(
-                AssignmentExpression(
-                    SyntaxKind.SimpleAssignmentExpression,
-                    IdentifierName(propertyName),
-                    expression)));
+        return block.AddStatements(AssignmentStatement(propertyName, expression));
     }
+
+    public static ExpressionStatementSyntax AssignmentStatement(string propertyName, ExpressionSyntax expression)
+    {
+        return ExpressionStatement(
+                        AssignmentExpression(
+                            SyntaxKind.SimpleAssignmentExpression,
+                            IdentifierName(propertyName),
+                            expression));
+    }
+
+    public static BlockSyntax AddStatements(this BlockSyntax block, IEnumerable<StatementSyntax> items)
+        => block.WithStatements(block.Statements.AddRange(items));
 
 
     public static PropertyDeclarationSyntax PropertyDeclaration(ITypeSymbol typeSymbol, string identifier, params SyntaxKind[] modifiers)
@@ -98,7 +106,8 @@ internal static class CustomSyntaxFactory
     public static T WithModifiers<T>(this T memberDeclaration, params SyntaxKind[] modifiers) where T : MemberDeclarationSyntax
         => (T)memberDeclaration.WithModifiers(new SyntaxTokenList(modifiers.Select(m => Token(m))));
 
-
+    public static T AddMembers<T>(this T typeDeclaration, IEnumerable<MemberDeclarationSyntax> items) where T : TypeDeclarationSyntax
+        => (T)typeDeclaration.WithMembers( typeDeclaration.Members.AddRange(items));
 
     public static TypeSyntax TypeSyntax(ITypeSymbol typeSymbol)
         => ParseTypeName(typeSymbol.ToDisplayString());

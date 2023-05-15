@@ -18,10 +18,12 @@ internal record class GeneratorOptions
 {
     public string RootNamespace { get; set; } = default!;
     public string ApiTypeName { get; set; } = default!;
+    public string ApiOwnerTypeName { get; set; } = default!;
     public string[] ExtensionTypeNames { get; set; } = default!;
     public string WrapperNameFormatString { get; set; } = default!;
     public Regex ConstructionMethodNamePattern { get; set; } = default!;
     public Regex DisposalMethodNamePattern { get; set; } = default!;
+    public Regex HandleTypeNameExclusionPattern { get; set; } = default!;
 }
 
 
@@ -31,6 +33,9 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     {
         this.rootNamespace = string.IsNullOrEmpty(options.RootNamespace) ? null : NamespaceDeclaration(ParseName(options.RootNamespace));
         apiType = string.IsNullOrEmpty(options.ApiTypeName) ? null : compilation.GetTypeByMetadataName(options.ApiTypeName);
+        apiOwnerType = string.IsNullOrEmpty(options.ApiOwnerTypeName) ? null : compilation.GetTypeByMetadataName(options.ApiOwnerTypeName);
+        
+        disposeMethodPriority = new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default);
 
         if (options.ExtensionTypeNames is { Length: > 0 })
         {
@@ -41,19 +46,36 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         wrapperNameFormatString = options.WrapperNameFormatString;
         constructionMethodNamePattern = options.ConstructionMethodNamePattern;
         disposalMethodNamePattern = options.DisposalMethodNamePattern;
+        handleTypeNameExclusionPattern = options.HandleTypeNameExclusionPattern;
+
+        int priority = 0;
+        if (extensionTypes is not null)
+        {
+            foreach (var item in extensionTypes)
+            {
+                disposeMethodPriority[item] = priority++;
+            }
+        }
+        if (apiType != null)
+        {
+            disposeMethodPriority[apiType] = priority++;
+        }
     }
 
     private NamespaceDeclarationSyntax? rootNamespace;
     private ITypeSymbol? apiType;
+    private ITypeSymbol? apiOwnerType;
     private ITypeSymbol[]? extensionTypes;
     private string wrapperNameFormatString;
     private Regex constructionMethodNamePattern;
     private Regex disposalMethodNamePattern;
+    private Regex handleTypeNameExclusionPattern;
     private readonly MethodSymbolGroupCollection constructionMethods = new();
     private readonly MethodSymbolGroupCollection methods = new();
     private readonly MethodSymbolGroupCollection disposalMethods = new();
     private readonly HashSet<ITypeSymbol> handleTypes = new (SymbolEqualityComparer.Default);
     private readonly CancellationToken cancellationToken;
+    Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
     public IEnumerator<(string Name, string Source)> GetEnumerator()
     {
@@ -79,44 +101,133 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
                                 .AddDefaultConstructor(b => b.AddAssignmentStatement("Core", ParseExpression(apiType.ToDisplayString() + ".GetApi()")))
 
                                 .AddMembers(apiProperty)
-                                .AddMembers(extensionTypes.Select(e => PropertyDeclaration(e, e.Name, SyntaxKind.PublicKeyword).WithSetter()).ToArray())
-                                .AddDispose(b => b.AddStatements(extensionTypes.Select(e => InvokeDispose(e.Name, true)).Append(InvokeDispose("Core")).ToArray()));
+                                .AddMembers(extensionTypes.Select(e => PropertyDeclaration(e, e.Name, SyntaxKind.PublicKeyword).WithSetter()))
+                                .AddDispose(b => b.AddStatements(extensionTypes.Select(e => InvokeDispose(e.Name, true)).Append(InvokeDispose("Core"))));
         return apiContainer;
     }
 
     private ClassDeclarationSyntax GetWrapper(ITypeSymbol handleType)
     {
-        var name = GetWrapperName(handleType);
+        var wrapperName = GetWrapperName(handleType);
+        var name = GetName(handleType);
+        var isApiOwner = IsAPIOwner(handleType);
+        var members = new List<MemberDeclarationSyntax>();
 
         var constructionMethods = this.constructionMethods[handleType];
-        //var isRootObject = constructionMethods.SelectMany(m => m.Parameters.Select(p => p.Type)).All(t => handleTypes.Contains(t) == false);
 
+        var contructorMethodStatements = new SyntaxList<StatementSyntax>();
 
-        foreach (var item in constructionMethods)
+        if(isApiOwner)
         {
-
+            contructorMethodStatements = contructorMethodStatements
+                .Add(AssignmentStatement("Api", ParseExpression("new ApiContainer()")));
+            //TODO: make API agnostic
+            IEnumerable<StatementSyntax> extensionAssign = extensionTypes
+                .Select(e => ParseStatement($"if(Api.Core.TryGetDeviceExtension(null, out {e.ToDisplayString()} {CamelCase(e.Name)})) Api.{e.Name} = {CamelCase(e.Name)};"));
+            contructorMethodStatements = contructorMethodStatements.AddRange(extensionAssign);
         }
 
 
-        var declaration = ClassDeclaration(name, SyntaxKind.PublicKeyword)
-                            .AddMembers(PropertyDeclaration("ApiContainer", "Api"),
-                                        PropertyDeclaration(handleType,"Handle", SyntaxKind.PublicKeyword))
+
+        foreach (var item in SafetyFilter(constructionMethods))
+        {
+            var constructor = ConstructorDeclaration(wrapperName)
+                            .WithModifiers(SyntaxKind.PublicKeyword)
+                            .WithBody(Block().AddStatements(contructorMethodStatements));
+
+            members.Add(constructor);
+        }
+
+        foreach (var item in SafetyFilter(methods[handleType]))
+        {
+            var method = MethodDeclaration(ReturnTypeSyntax(item), item.Name.Replace(name,""))
+                            .WithModifiers(SyntaxKind.PublicKeyword)
+                            .WithBody(Block());
+
+            members.Add(method);
+        }
 
 
-                            .AddDispose(b => b)
-
+        var declaration = ClassDeclaration(wrapperName, SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword)
+                            .AddMembers(PropertyDeclaration("ApiContainer", "Api", SyntaxKind.PublicKeyword),
+                                        PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword))
+                            .AddMembers(members)
                             .AddMembers(ConversionOperatorDeclaration(Token(SyntaxKind.ImplicitKeyword), TypeSyntax(handleType))
-                                            .WithModifiers(SyntaxKind.PublicKeyword,SyntaxKind.StaticKeyword)
-                                            .WithParameterList(ParameterList(SingletonSeparatedList<ParameterSyntax>(Parameter(Identifier(CamelCase(name))).WithType(IdentifierName(name)))))
+                                            .WithModifiers(SyntaxKind.PublicKeyword, SyntaxKind.StaticKeyword)
+                                            .WithParameterList(ParameterList(SingletonSeparatedList<ParameterSyntax>(Parameter(Identifier(CamelCase(wrapperName))).WithType(IdentifierName(wrapperName)))))
                                             .WithExpressionBody(
                                                     ArrowExpressionClause(
                                                     MemberAccessExpression(
                                                         SyntaxKind.SimpleMemberAccessExpression,
-                                                        IdentifierName(CamelCase(name)), IdentifierName("Handle"))))
-                                            .WithSemicolonToken(Token(SyntaxKind.SemicolonToken)))
-                            ;
+                                                        IdentifierName(CamelCase(wrapperName)), IdentifierName("Handle"))))
+                                            .WithSemicolonToken(Token(SyntaxKind.SemicolonToken)));
+
+        var disposalMethods = this.disposalMethods[handleType];
+
+        if(disposalMethods.Any())
+        {
+            var disposeMethodStatements = new SyntaxList<StatementSyntax>();
+
+            foreach (var disposalMethod in disposalMethods.OrderByPriority(disposeMethodPriority))
+            { 
+                string statement;
+
+                if(Equals(apiType!, disposalMethod.ContainingType))
+                {
+                    statement = $"Api.Core.{disposalMethod.Name}(Handle);";
+                }
+                else
+                {
+                    statement = $"if (Api.{disposalMethod.ContainingType.Name} != null) Api.{disposalMethod.ContainingType.Name}.{disposalMethod.Name}(Handle);";
+                }
+
+                if(disposeMethodStatements.Count > 0)
+                {
+                    statement = "else " + statement;
+                }
+
+                disposeMethodStatements = disposeMethodStatements.Add(ParseStatement(statement));
+
+            }
+
+
+            if (isApiOwner)
+            {
+                disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Api.Dispose();"));
+            }
+
+            declaration = declaration.AddDispose(b => b.AddStatements(disposeMethodStatements));
+        }
 
         return declaration;
+    }
+
+    private TypeSyntax ReturnTypeSyntax(IMethodSymbol methodSymbol)
+    {
+        if (methodSymbol.ReturnsVoid)
+            return PredefinedType(Token(SyntaxKind.VoidKeyword));
+
+        if(IsHandleType(methodSymbol.ReturnType))
+            return ParseTypeName(GetWrapperName(methodSymbol.ReturnType));
+
+        return TypeSyntax(methodSymbol.ReturnType);
+    }
+
+    private IEnumerable<IMethodSymbol> SafetyFilter(IEnumerable<IMethodSymbol> list)
+    {
+        foreach (var item in list)
+        {
+            var parameters = item.Parameters.AsEnumerable();
+
+            if (IsHandleType(item.Parameters[0].Type))
+                parameters = parameters.Skip(1);
+
+            if (parameters.Any(p => p.Type is IPointerTypeSymbol))
+                continue;
+
+
+            yield return item;
+        }
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -162,16 +273,17 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
             {
                 constructionMethods.Add(methodSymbol.ReturnType, methodSymbol);
             }
-            else if (IsDisposalMethod(methodSymbol))
+            
+            if (IsDisposalMethod(methodSymbol))
             {
                 disposalMethods.Add(firstParamType, methodSymbol);
-                if (IsStructure(firstParamType) && Equals(GetNamespace(firstParamType), GetNamespace(typeSymbol)))
+                if (IsHandleType(typeSymbol, firstParamType))
                     handleTypes.Add(firstParamType);
             }
             else
             {
                 methods.Add(firstParamType, methodSymbol);
-                if (IsStructure(firstParamType) && Equals(GetNamespace(firstParamType), GetNamespace(typeSymbol)))
+                if (IsHandleType(typeSymbol, firstParamType))
                     handleTypes.Add(firstParamType);
             }
 
@@ -187,13 +299,19 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
             if (returnType is null) continue;
 
-
-            if (Equals(GetNamespace(returnType), GetNamespace(typeSymbol)) == false)
-                continue;
-
-            if (constructionMethods.ContainsKey(methodSymbol.ReturnType))
+            if (IsHandleType(typeSymbol, returnType))
                 handleTypes.Add(methodSymbol.ReturnType);
         }
+    }
+
+    private bool IsAPIOwner(ITypeSymbol typeSymbol)
+    {
+        if(apiOwnerType == null) return false;
+        if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
+        {
+            typeSymbol = pointerTypeSymbol.PointedAtType;
+        }
+        return Equals(apiOwnerType, typeSymbol);
     }
 
     private bool IsConstructionMethod(IMethodSymbol method)
@@ -206,8 +324,18 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         return method.ReturnsVoid && disposalMethodNamePattern.IsMatch(method.Name);
     }
 
+    private bool IsExcludedHandleType(ITypeSymbol typeSymbol)
+    {
+        return handleTypeNameExclusionPattern.IsMatch(GetName(typeSymbol));
+    }
+
     private bool IsHandleType(ITypeSymbol typeSymbol)
         => handleTypes.Contains(typeSymbol);
+
+    private bool IsHandleType(ITypeSymbol typeSymbol, ITypeSymbol handleTypeCandidate)
+    {
+        return IsStructure(handleTypeCandidate) && Equals(GetNamespace(handleTypeCandidate), GetNamespace(typeSymbol)) && !IsExcludedHandleType(handleTypeCandidate);
+    }
 
     private INamespaceSymbol GetNamespace(ITypeSymbol typeSymbol)
     {

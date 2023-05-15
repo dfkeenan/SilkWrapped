@@ -26,10 +26,12 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
         {
             RootNamespace = o.GetMSBuildProperty("RootNamespace"),
             ApiTypeName = o.GetMSBuildProperty("SilkObjectModel_API"),
+            ApiOwnerTypeName = o.GetMSBuildProperty("SilkObjectModel_APIOwnerTypeName"),
             ExtensionTypeNames = o.GetMSBuildProperty("SilkObjectModel_Extensions").Split(splitChars, StringSplitOptions.RemoveEmptyEntries),
             WrapperNameFormatString = o.GetMSBuildProperty("SilkObjectModel_WrapperNameFormatString", "{0}Wrapper"),
-            ConstructionMethodNamePattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_ConstructionMethodNamePattern", ".*(Create|Finish).*"), RegexOptions.Compiled),
-            DisposalMethodNamePattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_DisposalMethodNamePattern", ".*(Destroy|Release).*"), RegexOptions.Compiled),
+            ConstructionMethodNamePattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_ConstructionMethodNamePattern", ".*(Create|Finish|Acquire).*"), RegexOptions.Compiled),
+            DisposalMethodNamePattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_DisposalMethodNamePattern", ".*(Release|Drop|Destroy).*"), RegexOptions.Compiled),
+            HandleTypeNameExclusionPattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_HandleTypeNameExclusionPattern", "(Pfn).*"), RegexOptions.Compiled),
         });
         //var x = context.MetadataReferencesProvider.Select((m,ct) => m.)
 
