@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -16,7 +17,7 @@ internal static class CustomSyntaxFactory
 
     public static ClassDeclarationSyntax AddConstructor(this ClassDeclarationSyntax classDeclaration, params PropertyDeclarationSyntax[] properties)
     {
-        var parameters = ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(properties.Select(p => Parameter(CamelCase(p.Identifier)).WithType(p.Type))));
+        var parameters = ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(properties.Select(p => SyntaxFactory.Parameter(CamelCase(p.Identifier)).WithType(p.Type))));
         var assignments = properties.Select(p => ExpressionStatement(
                 AssignmentExpression(
                     SyntaxKind.SimpleAssignmentExpression,
@@ -111,6 +112,67 @@ internal static class CustomSyntaxFactory
 
     public static TypeSyntax TypeSyntax(ITypeSymbol typeSymbol)
         => ParseTypeName(typeSymbol.ToDisplayString());
+
+    public static ArgumentSyntax Argument(IParameterSymbol parameterSymbol)
+    {
+        ArgumentSyntax result = SyntaxFactory.Argument(IdentifierName(parameterSymbol.Name));
+
+
+        return parameterSymbol.RefKind switch
+        {
+            RefKind.Ref => result.WithRefOrOutKeyword(Token(SyntaxKind.RefKeyword)),
+            RefKind.Out => result.WithRefOrOutKeyword(Token(SyntaxKind.OutKeyword)),
+            _ => result
+        };
+    }
+
+    public static T WithParameterList<T>(this T declaration, IEnumerable<ParameterSyntax> parameters) where T : BaseMethodDeclarationSyntax
+        => (T)declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
+
+    public static InvocationExpressionSyntax WithArgumentList(this InvocationExpressionSyntax declaration, IEnumerable<ArgumentSyntax> arguments)
+        => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
+
+    public static ObjectCreationExpressionSyntax WithArgumentList(this ObjectCreationExpressionSyntax declaration, IEnumerable<ArgumentSyntax> arguments)
+        => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
+
+    public static ObjectCreationExpressionSyntax WithArgumentList(this ObjectCreationExpressionSyntax declaration, params ArgumentSyntax[] arguments)
+        => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
+
+    public static ParameterSyntax Parameter(IParameterSymbol parameter)
+    {
+        var result = SyntaxFactory.Parameter(Identifier(parameter.Name))
+                        .WithType(TypeSyntax(parameter.Type));
+
+        if (parameter.HasExplicitDefaultValue)
+            result = result.WithDefault(EqualsValueClause(LiteralExpression(parameter.ExplicitDefaultValue!)));
+
+
+        return parameter.RefKind switch
+        {
+            RefKind.Ref => result.WithModifiers(TokenList(Token(SyntaxKind.RefKeyword))),
+            RefKind.In => result.WithModifiers(TokenList(Token(SyntaxKind.InKeyword))),
+            RefKind.Out => result.WithModifiers(TokenList(Token(SyntaxKind.OutKeyword))),
+            _ => result
+        };
+    }
+
+    public static LiteralExpressionSyntax LiteralExpression(object value)
+        => value switch
+        {
+            null => SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression),
+            string s => SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(s)),
+            //..... :(
+            //No way to get enums. value is null.
+        };
+
+    public static VariableDeclarationSyntax WithInitializer(this VariableDeclarationSyntax variableDeclarationSyntax, ExpressionSyntax initializer)
+    {
+        IEnumerable<VariableDeclaratorSyntax> variables = variableDeclarationSyntax.Variables;
+
+        variables = variables.Select(v => v.WithInitializer(EqualsValueClause(initializer)));
+
+        return variableDeclarationSyntax.WithVariables(new SeparatedSyntaxList<VariableDeclaratorSyntax>().AddRange(variables));
+    }
 
     public static string CamelCase(string value)
         => char.ToLower(value[0]) + value.Substring(1);

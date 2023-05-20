@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace SilkWrapped.SourceGenerator;
+
 [Generator(LanguageNames.CSharp)]
 public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
 {
@@ -21,22 +22,24 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var splitChars = new[] { ';' };
+       
         var config = context.GetMSBuildProperties(o => new GeneratorOptions
         {
             RootNamespace = o.GetMSBuildProperty("RootNamespace"),
             ApiTypeName = o.GetMSBuildProperty("SilkObjectModel_API"),
             ApiOwnerTypeName = o.GetMSBuildProperty("SilkObjectModel_APIOwnerTypeName"),
-            ExtensionTypeNames = o.GetMSBuildProperty("SilkObjectModel_Extensions").Split(splitChars, StringSplitOptions.RemoveEmptyEntries),
+            ExtensionTypeNames = o.GetMSBuildProperty("SilkObjectModel_Extensions"),
             WrapperNameFormatString = o.GetMSBuildProperty("SilkObjectModel_WrapperNameFormatString", "{0}Wrapper"),
-            ConstructionMethodNamePattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_ConstructionMethodNamePattern", ".*(Create|Finish|Acquire).*"), RegexOptions.Compiled),
-            DisposalMethodNamePattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_DisposalMethodNamePattern", ".*(Release|Drop|Destroy).*"), RegexOptions.Compiled),
-            HandleTypeNameExclusionPattern = new Regex(o.GetMSBuildProperty("SilkObjectModel_HandleTypeNameExclusionPattern", "(Pfn).*"), RegexOptions.Compiled),
+            ConstructionMethodNamePattern = o.GetMSBuildProperty("SilkObjectModel_ConstructionMethodNamePattern", ".*(Create|Finish|Acquire).*"),
+            DisposalMethodNamePattern = o.GetMSBuildProperty("SilkObjectModel_DisposalMethodNamePattern", ".*(Release|Drop|Destroy).*"),
+            HandleTypeNameExclusionPattern = o.GetMSBuildProperty("SilkObjectModel_HandleTypeNameExclusionPattern", "(Pfn).*|.*Descriptor"),
         });
         //var x = context.MetadataReferencesProvider.Select((m,ct) => m.)
 
         var compilation = context.CompilationProvider
+            //.WithComparer(CompilationReferencesEqualityComperer.Instance)
             .Combine(config);
+            //.Select((s,ct) => new ObjectModelGenerator(s.Left, ct, s.Right));
 
 
 
@@ -44,8 +47,31 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
         {
             foreach (var item in new ObjectModelGenerator(compilation.Left, spc.CancellationToken, compilation.Right))
             {
-                spc.AddSource($"{item.Name}.g.s", item.Source);
+                spc.AddSource($"{item.Name}.g.cs", item.Source);
+                
             }
         });
+    }
+}
+
+public class CompilationReferencesEqualityComperer : IEqualityComparer<Compilation>
+{
+    public static CompilationReferencesEqualityComperer Instance { get; } = new CompilationReferencesEqualityComperer();
+
+    public bool Equals(Compilation x, Compilation y)
+    {
+        if (x == y) return true;
+
+        return x.References.SequenceEqual(y.References);
+    }
+
+    public int GetHashCode(Compilation obj)
+    {
+        var hashCode = new HashCode();
+
+        foreach (var x in obj.References)
+            hashCode.Add(x.GetHashCode());
+
+        return hashCode.ToHashCode();
     }
 }

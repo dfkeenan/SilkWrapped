@@ -19,11 +19,11 @@ internal record class GeneratorOptions
     public string RootNamespace { get; set; } = default!;
     public string ApiTypeName { get; set; } = default!;
     public string ApiOwnerTypeName { get; set; } = default!;
-    public string[] ExtensionTypeNames { get; set; } = default!;
+    public string ExtensionTypeNames { get; set; } = default!;
     public string WrapperNameFormatString { get; set; } = default!;
-    public Regex ConstructionMethodNamePattern { get; set; } = default!;
-    public Regex DisposalMethodNamePattern { get; set; } = default!;
-    public Regex HandleTypeNameExclusionPattern { get; set; } = default!;
+    public string ConstructionMethodNamePattern { get; set; } = default!;
+    public string DisposalMethodNamePattern { get; set; } = default!;
+    public string HandleTypeNameExclusionPattern { get; set; } = default!;
 }
 
 
@@ -39,14 +39,19 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
         if (options.ExtensionTypeNames is { Length: > 0 })
         {
-            extensionTypes = options.ExtensionTypeNames.Select(n => compilation.GetTypeByMetadataName(n)!).Where(t => t is not null).ToArray();
+            var splitChars = new[] { ';' };
+            extensionTypes = options.ExtensionTypeNames
+                .Split(splitChars, StringSplitOptions.RemoveEmptyEntries)
+                .Select(n => compilation.GetTypeByMetadataName(n)!)
+                .Where(t => t is not null)
+                .ToArray();
         }
 
         this.cancellationToken = cancellationToken;
         wrapperNameFormatString = options.WrapperNameFormatString;
-        constructionMethodNamePattern = options.ConstructionMethodNamePattern;
-        disposalMethodNamePattern = options.DisposalMethodNamePattern;
-        handleTypeNameExclusionPattern = options.HandleTypeNameExclusionPattern;
+        constructionMethodNamePattern = new Regex( options.ConstructionMethodNamePattern, RegexOptions.Compiled);
+        disposalMethodNamePattern = new Regex(options.DisposalMethodNamePattern, RegexOptions.Compiled);
+        handleTypeNameExclusionPattern = new Regex(options.HandleTypeNameExclusionPattern, RegexOptions.Compiled);
 
         int priority = 0;
         if (extensionTypes is not null)
@@ -77,6 +82,29 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private readonly CancellationToken cancellationToken;
     Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
+    private readonly ArgumentSyntax handleArgument = Argument(IdentifierName("Handle"));
+    private readonly VariableDeclarationSyntax resultVariable = VariableDeclaration(
+                                                    IdentifierName(
+                                                        Identifier(
+                                                            TriviaList(),
+                                                            SyntaxKind.VarKeyword,
+                                                            "var",
+                                                            "var",
+                                                            TriviaList())))
+                                                                .WithVariables(
+                                                                    SingletonSeparatedList(
+                                                                        VariableDeclarator(
+                                                                            Identifier("result"))));
+    private readonly ReturnStatementSyntax returnResultStatement = ReturnStatement(IdentifierName("result"));
+    private readonly ArgumentListSyntax wrapperCreationArgumentList = ArgumentList(
+                            SeparatedList<ArgumentSyntax>(
+                                new SyntaxNodeOrToken[]{
+                                    Argument(
+                                        IdentifierName("Api")),
+                                    Token(SyntaxKind.CommaToken),
+                                    Argument(
+                                        IdentifierName("result"))}));
+
     public IEnumerator<(string Name, string Source)> GetEnumerator()
     {
         if (apiType is null) yield break;
@@ -98,7 +126,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     {
         PropertyDeclarationSyntax apiProperty = PropertyDeclaration(apiType!, "Core", SyntaxKind.PublicKeyword);
         var apiContainer = ClassDeclaration("ApiContainer", SyntaxKind.PublicKeyword)
-                                .AddDefaultConstructor(b => b.AddAssignmentStatement("Core", ParseExpression(apiType.ToDisplayString() + ".GetApi()")))
+                                .AddDefaultConstructor(b => b.AddAssignmentStatement("Core", ParseExpression(apiType!.ToDisplayString() + ".GetApi()")))
 
                                 .AddMembers(apiProperty)
                                 .AddMembers(extensionTypes.Select(e => PropertyDeclaration(e, e.Name, SyntaxKind.PublicKeyword).WithSetter()))
@@ -129,32 +157,115 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
 
 
-        foreach (var item in SafetyFilter(constructionMethods))
+        foreach (var methodSymbol in SafetyFilter(constructionMethods))
         {
-            var constructor = ConstructorDeclaration(wrapperName)
-                            .WithModifiers(SyntaxKind.PublicKeyword)
-                            .WithBody(Block().AddStatements(contructorMethodStatements));
+            var parameters = from parameterSymbol in methodSymbol.Parameters
+                             let parameter = Parameter(parameterSymbol)
+                             select IsHandleType(parameterSymbol.Type) ?
+                                    parameter.WithType(IdentifierName(GetWrapperName(parameterSymbol.Type))) :
+                                    parameter;
 
-            members.Add(constructor);
+            IEnumerable<ArgumentSyntax> arguments;
+
+
+            if (IsHandleType(methodSymbol.Parameters[0].Type))
+            {
+                contructorMethodStatements = contructorMethodStatements
+                    .Add(AssignmentStatement("Api", 
+                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, 
+                            IdentifierName(methodSymbol.Parameters[0].Name),
+                            IdentifierName("Api"))));
+
+                arguments = from parameterSymbol in methodSymbol.Parameters.Skip(1)
+                            let argument = Argument(parameterSymbol)
+                            select argument;
+
+                arguments = arguments.Prepend(Argument(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                            IdentifierName(methodSymbol.Parameters[0].Name),
+                            IdentifierName("Handle"))));
+            }
+            else
+            {
+                arguments = from parameterSymbol in methodSymbol.Parameters
+                            let argument = Argument(parameterSymbol)
+                            select argument;
+            }
+
+            var apiMember = MethodApiMemberExpression(methodSymbol);
+
+            var invocationExpression = InvocationExpression(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, apiMember, IdentifierName(methodSymbol.Name)))
+                                            .WithArgumentList(arguments);
+
+            contructorMethodStatements = contructorMethodStatements.Add(AssignmentStatement("Handle", invocationExpression));
+
+
+            var constructorDeclaration = ConstructorDeclaration(wrapperName)
+                                            .WithModifiers(SyntaxKind.PublicKeyword)
+                                            .WithParameterList(parameters)
+                                            .WithBody(Block().AddStatements(contructorMethodStatements));
+
+            members.Add(constructorDeclaration);
         }
 
-        foreach (var item in SafetyFilter(methods[handleType]))
-        {
-            var method = MethodDeclaration(ReturnTypeSyntax(item), item.Name.Replace(name,""))
-                            .WithModifiers(SyntaxKind.PublicKeyword)
-                            .WithBody(Block());
+        
 
-            members.Add(method);
+        foreach (var methodSymbol in SafetyFilter(methods[handleType]))
+        {
+            var parameters = from parameterSymbol in methodSymbol.Parameters.Skip(1)
+                             let parameter = Parameter(parameterSymbol)
+                             select parameter;
+
+            var arguments = from parameterSymbol in methodSymbol.Parameters.Skip(1)
+                            let argument = Argument(parameterSymbol)
+                            select argument;
+
+            var methodDeclaration = MethodDeclaration(ReturnTypeSyntax(methodSymbol), methodSymbol.Name.Replace(name, ""))
+                                        .WithParameterList(parameters)
+                                        .WithModifiers(SyntaxKind.PublicKeyword);
+
+            BlockSyntax body = Block();
+
+            var apiMember = MethodApiMemberExpression(methodSymbol);
+
+            var invocationExpression = InvocationExpression(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, apiMember, IdentifierName(methodSymbol.Name)))
+                                            .WithArgumentList(arguments.Prepend(handleArgument));
+
+            if(methodSymbol.ReturnsVoid)
+            {
+                body = body.AddStatements(ExpressionStatement(invocationExpression));
+            }
+            else
+            {
+                ReturnStatementSyntax returnStatement;
+
+                if(IsHandleType(methodSymbol.ReturnType))
+                {
+                    returnStatement = ReturnStatement(ObjectCreationExpression(IdentifierName(GetWrapperName(methodSymbol.ReturnType)))
+                                        .WithArgumentList(wrapperCreationArgumentList));
+                }
+                else
+                {
+                    returnStatement = returnResultStatement;
+                }
+
+
+                body = body.AddStatements(LocalDeclarationStatement(resultVariable.WithInitializer(invocationExpression)), returnStatement);
+            }
+
+
+            members.Add(methodDeclaration.WithBody(body));
         }
 
 
+        var apiProperty = PropertyDeclaration("ApiContainer", "Api", SyntaxKind.PublicKeyword);
+        var handleProperty = PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword);
         var declaration = ClassDeclaration(wrapperName, SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword)
-                            .AddMembers(PropertyDeclaration("ApiContainer", "Api", SyntaxKind.PublicKeyword),
-                                        PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword))
+                            .AddMembers(apiProperty, handleProperty)
+                            .AddConstructor(apiProperty, handleProperty)
                             .AddMembers(members)
                             .AddMembers(ConversionOperatorDeclaration(Token(SyntaxKind.ImplicitKeyword), TypeSyntax(handleType))
                                             .WithModifiers(SyntaxKind.PublicKeyword, SyntaxKind.StaticKeyword)
-                                            .WithParameterList(ParameterList(SingletonSeparatedList<ParameterSyntax>(Parameter(Identifier(CamelCase(wrapperName))).WithType(IdentifierName(wrapperName)))))
+                                            .WithParameterList(ParameterList(SingletonSeparatedList(Parameter(Identifier(CamelCase(wrapperName))).WithType(IdentifierName(wrapperName)))))
                                             .WithExpressionBody(
                                                     ArrowExpressionClause(
                                                     MemberAccessExpression(
@@ -171,14 +282,15 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
             foreach (var disposalMethod in disposalMethods.OrderByPriority(disposeMethodPriority))
             { 
                 string statement;
+                string apiMember = MethodApiMember(disposalMethod);
 
                 if(Equals(apiType!, disposalMethod.ContainingType))
                 {
-                    statement = $"Api.Core.{disposalMethod.Name}(Handle);";
+                    statement = $"{apiMember}.{disposalMethod.Name}(Handle);";
                 }
                 else
                 {
-                    statement = $"if (Api.{disposalMethod.ContainingType.Name} != null) Api.{disposalMethod.ContainingType.Name}.{disposalMethod.Name}(Handle);";
+                    statement = $"if ({apiMember} != null) {apiMember}.{disposalMethod.Name}(Handle);";
                 }
 
                 if(disposeMethodStatements.Count > 0)
@@ -200,6 +312,23 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         }
 
         return declaration;
+    }
+
+    private ExpressionSyntax MethodApiMemberExpression(IMethodSymbol methodSymbol)
+    {
+        return ParseExpression(MethodApiMember(methodSymbol));
+    }
+
+    private string MethodApiMember(IMethodSymbol method)
+    {
+        if (Equals(apiType!, method.ContainingType))
+        {
+            return "Api.Core";
+        }
+        else
+        {
+            return $"Api.{method.ContainingType.Name}";
+        }
     }
 
     private TypeSyntax ReturnTypeSyntax(IMethodSymbol methodSymbol)
