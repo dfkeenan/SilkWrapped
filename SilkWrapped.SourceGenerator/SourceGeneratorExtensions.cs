@@ -22,7 +22,8 @@ internal static class SourceGeneratorExtensions
         string name,
         string defaultValue = "")
     {
-        return analyzerConfigOptions.TryGetValue($"build_property.{name}", out var value) ? value : defaultValue;
+        return analyzerConfigOptions.TryGetValue($"build_property.{name}", out var value) 
+            && !string.IsNullOrEmpty(value) ? value : defaultValue;
 
     }
 }

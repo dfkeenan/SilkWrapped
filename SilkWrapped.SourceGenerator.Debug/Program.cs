@@ -17,13 +17,13 @@ MSBuildLocator.RegisterDefaults();
 using var workspace = MSBuildWorkspace.Create();
 
 var project = await workspace.OpenProjectAsync(targetProjectPath);
+
 var compilation = await project.GetCompilationAsync();
 
 foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
 {
     Console.WriteLine(item.GetMessage());
 }
-
 
 
 var generator = new ObjectModelSourceGenerator();
@@ -41,4 +41,7 @@ var config = new TestAnalyzerConfigOptionsProvider()
 
 GeneratorDriver driver = CSharpGeneratorDriver.Create(generator).WithUpdatedAnalyzerConfigOptions(config);
 
-driver = driver.RunGenerators(compilation!);
+//driver = driver.RunGenerators(compilation!);
+driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);
+
+Console.WriteLine();

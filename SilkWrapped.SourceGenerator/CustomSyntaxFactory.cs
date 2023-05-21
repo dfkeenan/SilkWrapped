@@ -165,6 +165,63 @@ internal static class CustomSyntaxFactory
             //No way to get enums. value is null.
         };
 
+    public static TypeParameterSyntax TypeParameter(ITypeParameterSymbol typeParameter)
+    {
+        var result = SyntaxFactory.TypeParameter(typeParameter.Name);
+
+        result = typeParameter.Variance switch
+        {
+            VarianceKind.In => result.WithVarianceKeyword(Token(SyntaxKind.InKeyword)),
+            VarianceKind.Out => result.WithVarianceKeyword(Token(SyntaxKind.OutKeyword)),
+            _ => result
+        };
+
+        return result;
+    }
+
+    public static TypeParameterConstraintClauseSyntax TypeParameterConstraintClause(ITypeParameterSymbol typeParameter)
+    {
+        
+        var result = SyntaxFactory.TypeParameterConstraintClause(typeParameter.Name);
+        
+        if(typeParameter.HasUnmanagedTypeConstraint)
+        {
+            result = result.AddConstraints(TypeConstraint(
+                                                IdentifierName(
+                                                    Identifier(
+                                                        TriviaList(),
+                                                        SyntaxKind.UnmanagedKeyword,
+                                                        "unmanaged",
+                                                        "unmanaged",
+                                                        TriviaList()))));
+        }
+        else if(typeParameter.HasValueTypeConstraint)
+        {
+            result = result.AddConstraints(ClassOrStructConstraint(SyntaxKind.StructConstraint));
+        }
+        else if (typeParameter.HasReferenceTypeConstraint)
+        {
+            result = result.AddConstraints(ClassOrStructConstraint(SyntaxKind.ClassConstraint));
+        }
+
+        if (typeParameter.HasNotNullConstraint)
+        {
+            result = result.AddConstraints(TypeConstraint(IdentifierName("notnull")));
+        }
+
+        foreach (var item in typeParameter.ConstraintTypes)
+        {
+           result = result.AddConstraints(TypeConstraint(TypeSyntax(item)));
+        }
+
+        if(typeParameter.HasConstructorConstraint)
+        {
+            result = result.AddConstraints(ConstructorConstraint());
+        }
+
+        return result;
+    }
+
     public static VariableDeclarationSyntax WithInitializer(this VariableDeclarationSyntax variableDeclarationSyntax, ExpressionSyntax initializer)
     {
         IEnumerable<VariableDeclaratorSyntax> variables = variableDeclarationSyntax.Variables;

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -13,16 +14,17 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace SilkWrapped.SourceGenerator;
 
 [Generator(LanguageNames.CSharp)]
-public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
+public class ObjectModelSourceGenerator : IIncrementalGenerator
 {
-    public void Dispose()
-    {
-        throw new NotImplementedException();
-    }
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-       
+//#if DEBUG 
+//        if (!Debugger.IsAttached)
+//        {
+//            Debugger.Launch();
+//        }
+//#endif
+
         var config = context.GetMSBuildProperties(o => new GeneratorOptions
         {
             RootNamespace = o.GetMSBuildProperty("RootNamespace"),
@@ -37,7 +39,7 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
         //var x = context.MetadataReferencesProvider.Select((m,ct) => m.)
 
         var compilation = context.CompilationProvider
-            //.WithComparer(CompilationReferencesEqualityComperer.Instance)
+            .WithComparer(CompilationReferencesEqualityComperer.Instance)
             .Combine(config);
             //.Select((s,ct) => new ObjectModelGenerator(s.Left, ct, s.Right));
 
@@ -48,7 +50,6 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator, IDisposable
             foreach (var item in new ObjectModelGenerator(compilation.Left, spc.CancellationToken, compilation.Right))
             {
                 spc.AddSource($"{item.Name}.g.cs", item.Source);
-                
             }
         });
     }

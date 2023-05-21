@@ -82,8 +82,8 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private readonly CancellationToken cancellationToken;
     Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
-    private readonly ArgumentSyntax handleArgument = Argument(IdentifierName("Handle"));
-    private readonly VariableDeclarationSyntax resultVariable = VariableDeclaration(
+    private static readonly ArgumentSyntax handleArgument = Argument(IdentifierName("Handle"));
+    private static readonly VariableDeclarationSyntax resultVariable = VariableDeclaration(
                                                     IdentifierName(
                                                         Identifier(
                                                             TriviaList(),
@@ -95,8 +95,8 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
                                                                     SingletonSeparatedList(
                                                                         VariableDeclarator(
                                                                             Identifier("result"))));
-    private readonly ReturnStatementSyntax returnResultStatement = ReturnStatement(IdentifierName("result"));
-    private readonly ArgumentListSyntax wrapperCreationArgumentList = ArgumentList(
+    private static readonly ReturnStatementSyntax returnResultStatement = ReturnStatement(IdentifierName("result"));
+    private static readonly ArgumentListSyntax wrapperCreationArgumentList = ArgumentList(
                             SeparatedList<ArgumentSyntax>(
                                 new SyntaxNodeOrToken[]{
                                     Argument(
@@ -104,6 +104,8 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
                                     Token(SyntaxKind.CommaToken),
                                     Argument(
                                         IdentifierName("result"))}));
+
+    private static readonly StatementSyntax returnIfNull = ParseStatement("if (result == null) return null;");
 
     public IEnumerator<(string Name, string Source)> GetEnumerator()
     {
@@ -223,6 +225,22 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
                                         .WithParameterList(parameters)
                                         .WithModifiers(SyntaxKind.PublicKeyword);
 
+            if(methodSymbol.IsGenericMethod)
+            {
+                var typeParameters = from typeParameter in methodSymbol.TypeParameters
+                                     select TypeParameter(typeParameter);
+
+                var constraints = from typeParameter in methodSymbol.TypeParameters
+                                  let clause = TypeParameterConstraintClause(typeParameter)
+                                  where clause.Constraints.Any()
+                                  select clause;
+                
+
+                methodDeclaration = methodDeclaration
+                    .WithTypeParameterList(TypeParameterList(new SeparatedSyntaxList<TypeParameterSyntax>().AddRange(typeParameters)))
+                    .WithConstraintClauses(new SyntaxList<TypeParameterConstraintClauseSyntax>().AddRange(constraints));
+            }
+
             BlockSyntax body = Block();
 
             var apiMember = MethodApiMemberExpression(methodSymbol);
@@ -230,7 +248,12 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
             var invocationExpression = InvocationExpression(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, apiMember, IdentifierName(methodSymbol.Name)))
                                             .WithArgumentList(arguments.Prepend(handleArgument));
 
-            if(methodSymbol.ReturnsVoid)
+            //if (methodSymbol.IsGenericMethod)
+            //{
+                
+            //}
+
+            if (methodSymbol.ReturnsVoid)
             {
                 body = body.AddStatements(ExpressionStatement(invocationExpression));
             }
@@ -242,14 +265,13 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
                 {
                     returnStatement = ReturnStatement(ObjectCreationExpression(IdentifierName(GetWrapperName(methodSymbol.ReturnType)))
                                         .WithArgumentList(wrapperCreationArgumentList));
+                    body = body.AddStatements(LocalDeclarationStatement(resultVariable.WithInitializer(invocationExpression)), returnIfNull, returnStatement);
                 }
                 else
                 {
                     returnStatement = returnResultStatement;
+                    body = body.AddStatements(LocalDeclarationStatement(resultVariable.WithInitializer(invocationExpression)), returnStatement);
                 }
-
-
-                body = body.AddStatements(LocalDeclarationStatement(resultVariable.WithInitializer(invocationExpression)), returnStatement);
             }
 
 
@@ -259,7 +281,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
         var apiProperty = PropertyDeclaration("ApiContainer", "Api", SyntaxKind.PublicKeyword);
         var handleProperty = PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword);
-        var declaration = ClassDeclaration(wrapperName, SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword)
+        var declaration = ClassDeclaration(wrapperName, SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword, SyntaxKind.PartialKeyword)
                             .AddMembers(apiProperty, handleProperty)
                             .AddConstructor(apiProperty, handleProperty)
                             .AddMembers(members)
@@ -351,7 +373,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
             if (IsHandleType(item.Parameters[0].Type))
                 parameters = parameters.Skip(1);
 
-            if (parameters.Any(p => p.Type is IPointerTypeSymbol))
+            if (parameters.Any(p => p.Type is IPointerTypeSymbol && !IsHandleType(p.Type)))
                 continue;
 
 
@@ -446,7 +468,8 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private bool IsConstructionMethod(IMethodSymbol method)
     {
         return !method.ReturnsVoid &&
-                constructionMethodNamePattern.IsMatch(method.Name);
+                constructionMethodNamePattern.IsMatch(method.Name) &&
+                IsAPIOwner(method.ReturnType); // Only create constructor for API owner.
     }
     private bool IsDisposalMethod(IMethodSymbol method)
     {
