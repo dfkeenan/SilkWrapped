@@ -1,24 +1,25 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-
-using Microsoft.Build.Locator;
+﻿using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Editing;
-using Microsoft.CodeAnalysis.MSBuild;
 using SilkWrapped.SourceGenerator;
 using SilkWrapped.SourceGenerator.Debug;
 
-var targetProjectPath = @"..\..\..\..\SilkWrapped.WebGPU\SilkWrapped.WebGPU.csproj";
+var source =
+"""
 
-MSBuildLocator.RegisterDefaults();
+""";
 
-using var workspace = MSBuildWorkspace.Create();
+var types = new[]
+{
+    typeof(Silk.NET.WebGPU.WebGPU).GetTypeInfo(),
+};
 
-var project = await workspace.OpenProjectAsync(targetProjectPath);
-
-var compilation = await project.GetCompilationAsync();
+var metadataReferences = AppDomain.CurrentDomain.GetAssemblies().Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
+  
+var compilation = CSharpCompilation.Create("compilation",
+                new[] { CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest)) },
+                metadataReferences,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
 foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
 {
