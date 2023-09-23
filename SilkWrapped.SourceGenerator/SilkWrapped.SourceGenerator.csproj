@@ -20,6 +20,5 @@
         <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 
         <!-- Package the props file -->
-        <None Include="ObjectModelSourceGenerator.props" Pack="true" PackagePath="build" Visible="false" />
     </ItemGroup>
 </Project>

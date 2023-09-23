@@ -16,51 +16,42 @@ namespace SilkWrapped.SourceGenerator;
 
 internal record class GeneratorOptions
 {
-    public string RootNamespace { get; set; } = default!;
-    public string ApiTypeName { get; set; } = default!;
-    public string ApiOwnerTypeName { get; set; } = default!;
-    public string ExtensionTypeNames { get; set; } = default!;
-    public string WrapperNameFormatString { get; set; } = default!;
-    public string ConstructionMethodNamePattern { get; set; } = default!;
-    public string DisposalMethodNamePattern { get; set; } = default!;
-    public string HandleTypeNameExclusionPattern { get; set; } = default!;
+    public string WrapperNameFormatString { get; set; } = "{0}Wrapper";
+    public string ConstructionMethodNamePattern { get; set; } = ".*(Create|Finish|Acquire).*";
+    public string DisposalMethodNamePattern { get; set; } = ".*(Release|Drop|Destroy).*";
+    public string HandleTypeNameExclusionPattern { get; set; } = "(Pfn).*|.*Descriptor";
 }
 
 
 internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 {
-    public ObjectModelGenerator(Compilation compilation, CancellationToken cancellationToken, GeneratorOptions options)
+    public ObjectModelGenerator(INamedTypeSymbol containerType, ITypeSymbol apiType, ITypeSymbol apiOwnerType, GeneratorOptions options, CancellationToken cancellationToken)
     {
-        this.rootNamespace = string.IsNullOrEmpty(options.RootNamespace) ? null : NamespaceDeclaration(ParseName(options.RootNamespace));
-        apiType = string.IsNullOrEmpty(options.ApiTypeName) ? null : compilation.GetTypeByMetadataName(options.ApiTypeName);
-        apiOwnerType = string.IsNullOrEmpty(options.ApiOwnerTypeName) ? null : compilation.GetTypeByMetadataName(options.ApiOwnerTypeName);
-        
-        disposeMethodPriority = new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default);
-
-        if (options.ExtensionTypeNames is { Length: > 0 })
-        {
-            var splitChars = new[] { ';' };
-            extensionTypes = options.ExtensionTypeNames
-                .Split(splitChars, StringSplitOptions.RemoveEmptyEntries)
-                .Select(n => compilation.GetTypeByMetadataName(n)!)
-                .Where(t => t is not null)
-                .ToArray();
-        }
-
         this.cancellationToken = cancellationToken;
+
+        this.rootNamespace = NamespaceDeclaration(ParseName(containerType.ContainingNamespace.ToString()));
+        this.containerType = containerType;
+        this.apiType = apiType;
+        this.apiOwnerType = apiOwnerType;
+
         wrapperNameFormatString = options.WrapperNameFormatString;
-        constructionMethodNamePattern = new Regex( options.ConstructionMethodNamePattern, RegexOptions.Compiled);
+        constructionMethodNamePattern = new Regex(options.ConstructionMethodNamePattern, RegexOptions.Compiled);
         disposalMethodNamePattern = new Regex(options.DisposalMethodNamePattern, RegexOptions.Compiled);
         handleTypeNameExclusionPattern = new Regex(options.HandleTypeNameExclusionPattern, RegexOptions.Compiled);
 
+
+        extensionTypes = containerType.GetAttributes()
+            .Where(a => a.AttributeClass?.Name == ObjectModelSourceGenerator.ApiExtensionAttributeName && a.ConstructorArguments is { Length: 1 } && a.ConstructorArguments[0].Value is ITypeSymbol)
+            .Select(a => (ITypeSymbol)a.ConstructorArguments[0].Value!).ToArray();
+
+        disposeMethodPriority = new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default);
+
         int priority = 0;
-        if (extensionTypes is not null)
+        foreach (var item in extensionTypes)
         {
-            foreach (var item in extensionTypes)
-            {
-                disposeMethodPriority[item] = priority++;
-            }
+            disposeMethodPriority[item] = priority++;
         }
+
         if (apiType != null)
         {
             disposeMethodPriority[apiType] = priority++;
@@ -68,9 +59,10 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     }
 
     private NamespaceDeclarationSyntax? rootNamespace;
-    private ITypeSymbol? apiType;
-    private ITypeSymbol? apiOwnerType;
-    private ITypeSymbol[]? extensionTypes;
+    private readonly INamedTypeSymbol containerType;
+    private ITypeSymbol apiType;
+    private ITypeSymbol apiOwnerType;
+    private ITypeSymbol[] extensionTypes;
     private string wrapperNameFormatString;
     private Regex constructionMethodNamePattern;
     private Regex disposalMethodNamePattern;
@@ -127,7 +119,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private ClassDeclarationSyntax GetApiContainer()
     {
         PropertyDeclarationSyntax apiProperty = PropertyDeclaration(apiType!, "Core", SyntaxKind.PublicKeyword);
-        var apiContainer = ClassDeclaration("ApiContainer", SyntaxKind.PublicKeyword)
+        var apiContainer = ClassDeclaration(containerType.Name, SyntaxKind.PublicKeyword, SyntaxKind.PartialKeyword)
                                 .AddDefaultConstructor(b => b.AddAssignmentStatement("Core", ParseExpression(apiType!.ToDisplayString() + ".GetApi()")))
 
                                 .AddMembers(apiProperty)
@@ -150,7 +142,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         if(isApiOwner)
         {
             contructorMethodStatements = contructorMethodStatements
-                .Add(AssignmentStatement("Api", ParseExpression("new ApiContainer()")));
+                .Add(AssignmentStatement("Api", ParseExpression($"new {containerType.Name}()")));
             //TODO: make API agnostic
             IEnumerable<StatementSyntax> extensionAssign = extensionTypes
                 .Select(e => ParseStatement($"if(Api.Core.TryGetDeviceExtension(null, out {e.ToDisplayString()} {CamelCase(e.Name)})) Api.{e.Name} = {CamelCase(e.Name)};"));
@@ -279,7 +271,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         }
 
 
-        var apiProperty = PropertyDeclaration("ApiContainer", "Api", SyntaxKind.PublicKeyword);
+        var apiProperty = PropertyDeclaration(containerType.Name, "Api", SyntaxKind.PublicKeyword);
         var handleProperty = PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword);
         var declaration = ClassDeclaration(wrapperName, SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword, SyntaxKind.PartialKeyword)
                             .AddMembers(apiProperty, handleProperty)

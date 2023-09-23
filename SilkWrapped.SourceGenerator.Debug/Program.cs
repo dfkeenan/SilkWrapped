@@ -6,12 +6,29 @@ using SilkWrapped.SourceGenerator.Debug;
 
 var source =
 """
+using SilkWrapped.SourceGenerator;
+namespace SilkWrapped.WebGPU;
 
+[ApiContainer(typeof(Silk.NET.WebGPU.WebGPU), typeof(Silk.NET.WebGPU.Instance))]
+[ApiExtension(typeof(Silk.NET.WebGPU.Extensions.Dawn.Dawn))]
+public partial class ApiWrapperContainer
+{
+    
+}
+
+public partial class DeviceWrapper
+{
+    [ReplaceMethod("CreateSwapChain")]
+    public void Test()
+    {
+    }
+}
 """;
 
 var types = new[]
 {
     typeof(Silk.NET.WebGPU.WebGPU).GetTypeInfo(),
+    typeof(Silk.NET.WebGPU.Extensions.Dawn.Dawn).GetTypeInfo(),
 };
 
 var metadataReferences = AppDomain.CurrentDomain.GetAssemblies().Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
@@ -29,18 +46,7 @@ foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == Diagn
 
 var generator = new ObjectModelSourceGenerator();
 
-var config = new TestAnalyzerConfigOptionsProvider()
-{
-    GlobalOptions =
-    {
-        ["RootNamespace"] = "SilkWrapped.WebGPU",
-        ["SilkObjectModel_API"] = "Silk.NET.WebGPU.WebGPU",
-        ["SilkObjectModel_APIOwnerTypeName"] = "Silk.NET.WebGPU.Instance",
-        ["SilkObjectModel_Extensions"] = "Silk.NET.WebGPU.Extensions.Dawn.Dawn;Silk.NET.WebGPU.Extensions.WGPU.Wgpu",
-    }
-};
-
-GeneratorDriver driver = CSharpGeneratorDriver.Create(generator).WithUpdatedAnalyzerConfigOptions(config);
+GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
 
 //driver = driver.RunGenerators(compilation!);
 driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);

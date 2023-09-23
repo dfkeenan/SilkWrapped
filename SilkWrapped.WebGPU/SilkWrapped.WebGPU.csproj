@@ -7,12 +7,6 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <OutputType>Library</OutputType>
     </PropertyGroup>
-    <Import  Project="..\SilkWrapped.SourceGenerator\ObjectModelSourceGenerator.props" />
-    <PropertyGroup>
-        <SilkObjectModel_API>Silk.NET.WebGPU.WebGPU</SilkObjectModel_API>
-        <SilkObjectModel_APIOwnerTypeName>Silk.NET.WebGPU.Instance</SilkObjectModel_APIOwnerTypeName>
-        <SilkObjectModel_Extensions>Silk.NET.WebGPU.Extensions.Dawn.Dawn;Silk.NET.WebGPU.Extensions.WGPU.Wgpu</SilkObjectModel_Extensions>
-    </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Silk.NET.WebGPU" Version="2.17.1-build3493.0" />
         <PackageReference Include="Silk.NET.WebGPU.Extensions.Dawn" Version="2.17.1-build3493.0" />
