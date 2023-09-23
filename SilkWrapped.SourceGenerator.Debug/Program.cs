@@ -45,4 +45,19 @@ GeneratorDriver driver = CSharpGeneratorDriver.Create(generator).WithUpdatedAnal
 //driver = driver.RunGenerators(compilation!);
 driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);
 
+if (Directory.Exists("sourceout"))
+{
+    Directory.GetFiles("sourceout").ToList().ForEach(f => File.Delete(f));
+}
+else
+{
+    Directory.CreateDirectory("sourceout");
+}
+
+foreach (var item in outputCompilation.SyntaxTrees.Where( t => !string.IsNullOrEmpty(t.FilePath)))
+{
+    File.WriteAllText($@"sourceout\{Path.GetFileName(item.FilePath)}", item.GetText().ToString());
+}
+
+
 Console.WriteLine();
