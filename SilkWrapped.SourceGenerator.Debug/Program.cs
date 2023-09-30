@@ -6,22 +6,25 @@ using SilkWrapped.SourceGenerator.Debug;
 
 var source =
 """
+using Silk.NET.WebGPU.Extensions.Dawn;
 using SilkWrapped.SourceGenerator;
+
 namespace SilkWrapped.WebGPU;
 
-[ApiContainer(typeof(Silk.NET.WebGPU.WebGPU), typeof(Silk.NET.WebGPU.Instance))]
-[ApiExtension(typeof(Silk.NET.WebGPU.Extensions.Dawn.Dawn))]
-public partial class ApiWrapperContainer
+[ApiContainer(typeof(Silk.NET.WebGPU.Instance))]
+public unsafe partial class ApiContainer
 {
-    
-}
-
-public partial class DeviceWrapper
-{
-    [ReplaceMethod("CreateSwapChain")]
-    public void Test()
+    public ApiContainer()
     {
+        Core = Silk.NET.WebGPU.WebGPU.GetApi();
+        if(Core.TryGetDeviceExtension(null, out Dawn dawn))
+        {
+            Dawn = dawn;
+        }
     }
+
+    public Silk.NET.WebGPU.WebGPU Core { get; }
+    public Dawn? Dawn { get; set; }
 }
 """;
 

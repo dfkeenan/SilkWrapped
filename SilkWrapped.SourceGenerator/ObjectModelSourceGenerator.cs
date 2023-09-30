@@ -19,7 +19,7 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator
     private const string Namespace = "SilkWrapped.SourceGenerator";
     private const string conditonString = "SILKWRAPPEDSOURCEGENERATOR";
     private const string ReplaceMethodAttributeName = "ReplaceMethodAttribute";
-    internal const string ApiExtensionAttributeName = "ApiExtensionAttribute";
+    private const string ApiContainerAttributeName = "ApiContainerAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -41,32 +41,18 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator
                 {
                     [Conditional("{{conditonString}}")]
                     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-                    public class ApiContainerAttribute : Attribute
+                    public class {{ApiContainerAttributeName}} : Attribute
                     {
-                        public ApiContainerAttribute(Type apiType, Type apiOwnerType)
+                        public {{ApiContainerAttributeName}}(Type apiOwnerType)
                         {
-                            ApiType = apiType;
                             ApiOwnerType = apiOwnerType;
                         }
 
-                        public Type ApiType { get; }
                         public Type ApiOwnerType { get; set; }
                         public string WrapperNameFormatString { get; set; }
                         public string ConstructionMethodNamePattern { get; set; }
                         public string DisposalMethodNamePattern { get; set; }
                         public string HandleTypeNameExclusionPattern { get; set; }
-                    }
-
-                    [Conditional("{{conditonString}}")]
-                    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-                    public class {{ApiExtensionAttributeName}} : Attribute
-                    {
-                        public ApiExtensionAttribute(Type extensionType)
-                        {
-                            ExtensionType = extensionType;
-                        }
-                
-                        public Type ExtensionType { get; }
                     }
 
                     [Conditional("{{conditonString}}")]
@@ -84,20 +70,19 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator
                 """");
         });
 
-        var apiContainer = context.SyntaxProvider.ForAttributeWithMetadataName<(INamedTypeSymbol? containerType, ITypeSymbol? apiType, ITypeSymbol? apiOwnerType, GeneratorOptions? options)>($"{Namespace}.ApiContainerAttribute",
+        var apiContainer = context.SyntaxProvider.ForAttributeWithMetadataName<(INamedTypeSymbol? containerType, ITypeSymbol? apiOwnerType, GeneratorOptions? options)>($"{Namespace}.{ApiContainerAttributeName}",
            (node, ct) =>
            {
-               return node is ClassDeclarationSyntax;
+               return node is ClassDeclarationSyntax cds && cds.IsPartial();
            },
            (context, ct) =>
            {
                var containerType = context.TargetSymbol as INamedTypeSymbol;
                GeneratorOptions? options = null;
 
-               if (context.Attributes.Length == 1 && context.Attributes[0].ConstructorArguments.Length == 2)
+               if (context.Attributes.Length == 1 && context.Attributes[0].ConstructorArguments.Length == 1)
                {
-                   var apiType = context.Attributes[0].ConstructorArguments[0].Value as ITypeSymbol;
-                   var apiOwnerType = context.Attributes[0].ConstructorArguments[1].Value as ITypeSymbol;
+                   var apiOwnerType = context.Attributes[0].ConstructorArguments[0].Value as ITypeSymbol;
 
                    options = new GeneratorOptions();
 
@@ -124,12 +109,26 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator
                    }
 
 
-                   return (containerType, apiType, apiOwnerType, options);
+                   return (containerType, apiOwnerType, options);
                }
 
-               return (containerType, null, null, null);
+               return (containerType, null, null);
            })
-            .Where(o => o.apiType is not null);
+            .Where(o => o.apiOwnerType is not null);
+
+        var silkTypes = context.CompilationProvider.Select<Compilation, (INamedTypeSymbol? nativeApiType, INamedTypeSymbol? extensionAttributeType)>((c, ct) =>
+        {
+            return
+            (
+                c.GetTypeByMetadataName("Silk.NET.Core.Native.NativeAPI"),
+                c.GetTypeByMetadataName("Silk.NET.Core.Attributes.ExtensionAttribute")
+            );
+        });
+
+        var objectModel = apiContainer.Combine(silkTypes)
+            .Where(c => c.Right.nativeApiType is not null && c.Right.extensionAttributeType is not null)
+            .Select((c, ct) =>
+                new ObjectModelGenerator(c.Left.containerType!, c.Left.apiOwnerType!, c.Left.options!, c.Right.nativeApiType!, c.Right.extensionAttributeType!));
 
 
         //var replaceAttributes = context.SyntaxProvider.ForAttributeWithMetadataName($"{Namespace}.{ReplaceMethodAttributeName}",
@@ -147,9 +146,9 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator
 
 
 
-        context.RegisterSourceOutput(apiContainer, (spc, compilation) =>
+        context.RegisterSourceOutput(objectModel, (spc, objectModel) =>
         {
-            foreach (var item in new ObjectModelGenerator(compilation.containerType!, compilation.apiType!, compilation.apiOwnerType!, compilation.options!, spc.CancellationToken))
+            foreach (var item in objectModel.GetSources(spc.CancellationToken))
             {
                 spc.AddSource($"{item.Name}.g.cs", item.Source);
             }

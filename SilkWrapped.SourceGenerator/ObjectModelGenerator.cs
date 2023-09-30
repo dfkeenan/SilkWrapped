@@ -23,26 +23,41 @@ internal record class GeneratorOptions
 }
 
 
-internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
+internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 {
-    public ObjectModelGenerator(INamedTypeSymbol containerType, ITypeSymbol apiType, ITypeSymbol apiOwnerType, GeneratorOptions options, CancellationToken cancellationToken)
+    public ObjectModelGenerator(INamedTypeSymbol containerType, ITypeSymbol apiOwnerType, GeneratorOptions options, INamedTypeSymbol nativeApiType, INamedTypeSymbol extensionAttributeType)
     {
-        this.cancellationToken = cancellationToken;
 
-        this.rootNamespace = NamespaceDeclaration(ParseName(containerType.ContainingNamespace.ToString()));
+        rootNamespace = NamespaceDeclaration(ParseName(containerType.ContainingNamespace.ToString()));
         this.containerType = containerType;
-        this.apiType = apiType;
         this.apiOwnerType = apiOwnerType;
+
+        extensionTypes = new List<ITypeSymbol>(); 
+        extensionProperties = new List<IPropertySymbol>();
+
+        foreach (var member in containerType.GetMembers())
+        {
+            if (member is not IPropertySymbol property) continue;
+            //property.ty
+            if (property.Type.Is(nativeApiType))
+            {
+                apiType = property.Type.WithNullableAnnotation(NullableAnnotation.None);
+                apiProperty = property;
+                continue;
+            }
+
+            if(property.Type.GetAttributes().Any(a => a.AttributeClass?.Is(extensionAttributeType) is true))
+            {
+                extensionTypes.Add(property.Type.WithNullableAnnotation(NullableAnnotation.None));
+                extensionProperties.Add(property);
+            }
+        }
 
         wrapperNameFormatString = options.WrapperNameFormatString;
         constructionMethodNamePattern = new Regex(options.ConstructionMethodNamePattern, RegexOptions.Compiled);
         disposalMethodNamePattern = new Regex(options.DisposalMethodNamePattern, RegexOptions.Compiled);
         handleTypeNameExclusionPattern = new Regex(options.HandleTypeNameExclusionPattern, RegexOptions.Compiled);
 
-
-        extensionTypes = containerType.GetAttributes()
-            .Where(a => a.AttributeClass?.Name == ObjectModelSourceGenerator.ApiExtensionAttributeName && a.ConstructorArguments is { Length: 1 } && a.ConstructorArguments[0].Value is ITypeSymbol)
-            .Select(a => (ITypeSymbol)a.ConstructorArguments[0].Value!).ToArray();
 
         disposeMethodPriority = new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default);
 
@@ -60,9 +75,11 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
     private NamespaceDeclarationSyntax? rootNamespace;
     private readonly INamedTypeSymbol containerType;
-    private ITypeSymbol apiType;
+    private ITypeSymbol? apiType;
+    private IPropertySymbol? apiProperty;
     private ITypeSymbol apiOwnerType;
-    private ITypeSymbol[] extensionTypes;
+    private List<ITypeSymbol> extensionTypes;
+    private List<IPropertySymbol> extensionProperties;
     private string wrapperNameFormatString;
     private Regex constructionMethodNamePattern;
     private Regex disposalMethodNamePattern;
@@ -71,7 +88,6 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private readonly MethodSymbolGroupCollection methods = new();
     private readonly MethodSymbolGroupCollection disposalMethods = new();
     private readonly HashSet<ITypeSymbol> handleTypes = new (SymbolEqualityComparer.Default);
-    private readonly CancellationToken cancellationToken;
     Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
     private static readonly ArgumentSyntax handleArgument = Argument(IdentifierName("Handle"));
@@ -99,13 +115,14 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
     private static readonly StatementSyntax returnIfNull = ParseStatement("if (result == null) return null;");
 
-    public IEnumerator<(string Name, string Source)> GetEnumerator()
+    public IEnumerable<(string Name, string Source)> GetSources(CancellationToken cancellationToken)
     {
         if (apiType is null) yield break;
+        if (apiProperty is null) yield break;
         if (rootNamespace is null) yield break;
         if (cancellationToken.IsCancellationRequested) yield break;
 
-        CollectTypeInformation();
+        CollectTypeInformation(cancellationToken);
 
         yield return GetOutput(GetApiContainer());
 
@@ -118,13 +135,8 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
 
     private ClassDeclarationSyntax GetApiContainer()
     {
-        PropertyDeclarationSyntax apiProperty = PropertyDeclaration(apiType!, "Core", SyntaxKind.PublicKeyword);
         var apiContainer = ClassDeclaration(containerType.Name, SyntaxKind.PublicKeyword, SyntaxKind.PartialKeyword)
-                                .AddDefaultConstructor(b => b.AddAssignmentStatement("Core", ParseExpression(apiType!.ToDisplayString() + ".GetApi()")))
-
-                                .AddMembers(apiProperty)
-                                .AddMembers(extensionTypes.Select(e => PropertyDeclaration(e, e.Name, SyntaxKind.PublicKeyword).WithSetter()))
-                                .AddDispose(b => b.AddStatements(extensionTypes.Select(e => InvokeDispose(e.Name, true)).Append(InvokeDispose("Core"))));
+                                .AddDispose(b => b.AddStatements(extensionProperties.Select(e => InvokeDispose(e.Name, true)).Append(InvokeDispose(apiProperty!.Name))));
         return apiContainer;
     }
 
@@ -143,13 +155,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         {
             contructorMethodStatements = contructorMethodStatements
                 .Add(AssignmentStatement("Api", ParseExpression($"new {containerType.Name}()")));
-            //TODO: make API agnostic
-            IEnumerable<StatementSyntax> extensionAssign = extensionTypes
-                .Select(e => ParseStatement($"if(Api.Core.TryGetDeviceExtension(null, out {e.ToDisplayString()} {CamelCase(e.Name)})) Api.{e.Name} = {CamelCase(e.Name)};"));
-            contructorMethodStatements = contructorMethodStatements.AddRange(extensionAssign);
         }
-
-
 
         foreach (var methodSymbol in SafetyFilter(constructionMethods))
         {
@@ -337,7 +343,7 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     {
         if (Equals(apiType!, method.ContainingType))
         {
-            return "Api.Core";
+            return $"Api.{apiProperty!.Name}";
         }
         else
         {
@@ -373,24 +379,17 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
         }
     }
 
-    IEnumerator IEnumerable.GetEnumerator()
+    private void CollectTypeInformation(CancellationToken cancellationToken)
     {
-        return GetEnumerator();
-    }
+        CollectTypeInformation(apiType!, cancellationToken);
 
-    private void CollectTypeInformation()
-    {
-        CollectTypeInformation(apiType!);
-        if(extensionTypes is not null)
+        foreach (var extensionType in extensionTypes)
         {
-            foreach (var extensionType in extensionTypes)
-            {
-                CollectTypeInformation(extensionType);
-            }
+            CollectTypeInformation(extensionType, cancellationToken);
         }
     }
 
-    private void CollectTypeInformation(ITypeSymbol typeSymbol)
+    private void CollectTypeInformation(ITypeSymbol typeSymbol, CancellationToken cancellationToken)
     {
         if(cancellationToken.IsCancellationRequested) return;
 
@@ -523,6 +522,40 @@ internal class ObjectModelGenerator : IEnumerable<(string Name, string Source)>
     private (string Name, string Source) GetOutput(TypeDeclarationSyntax typeDeclaration)
     {
         return (typeDeclaration.Identifier.Text, rootNamespace!.WithMembers(new SyntaxList<MemberDeclarationSyntax>(typeDeclaration)).NormalizeWhitespace().ToFullString());
+    }
+
+    public bool Equals(ObjectModelGenerator other)
+    {
+        if(ReferenceEquals(other, null)) return false;
+
+        if(!SymbolEqualityComparer.Default.Equals(apiOwnerType, other.apiOwnerType)) return false;
+        if(!SymbolEqualityComparer.Default.Equals(containerType, other.containerType)) return false;
+        if(!SymbolEqualityComparer.Default.Equals(apiType, other.apiType)) return false;
+        if(!wrapperNameFormatString.Equals(other.wrapperNameFormatString)) return false;
+        if(!constructionMethodNamePattern.Equals(other.constructionMethodNamePattern)) return false;
+        if(!disposalMethodNamePattern.Equals(other.disposalMethodNamePattern)) return false;
+        if(handleTypeNameExclusionPattern.Equals(other.handleTypeNameExclusionPattern)) return false;
+
+
+        return true;
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is ObjectModelGenerator g && Equals(g);
+    }
+
+    public override int GetHashCode() 
+    {
+        var hc = new HashCode();
+        hc.Add(apiOwnerType, SymbolEqualityComparer.Default);
+        hc.Add(containerType, SymbolEqualityComparer.Default);
+        hc.Add(apiType, SymbolEqualityComparer.Default);
+        hc.Add(wrapperNameFormatString);
+        hc.Add(constructionMethodNamePattern);
+        hc.Add(disposalMethodNamePattern);
+        hc.Add(handleTypeNameExclusionPattern);
+        return hc.ToHashCode();
     }
 }
 
