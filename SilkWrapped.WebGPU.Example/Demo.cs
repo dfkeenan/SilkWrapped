@@ -65,7 +65,7 @@ internal unsafe class Demo : IDisposable
         input = window.CreateInput();
         keyboard = input.Keyboards[0];
 
-        instance = new InstanceWrapper(new InstanceDescriptor());
+        instance = new InstanceWrapper();
         surface = window.CreateWebGPUSurface(instance);
         int dummy = 69;
         
@@ -144,13 +144,11 @@ internal unsafe class Demo : IDisposable
             ColorAttachments = colorAttachments,
         };
 
-        using var commandEncoder = device.CreateCommandEncoder(new CommandEncoderDescriptor { });
+        using var commandEncoder = device.CreateCommandEncoder();
         using var renderPassEncoder = commandEncoder.BeginRenderPass(renderPassDesc);
         renderPassEncoder.End();
-        using var commandBuffer = commandEncoder.Finish(new CommandBufferDescriptor { });
-        var cbHandle = commandBuffer.Handle;
-        queue.Submit(1, ref cbHandle);
-
+        using var commandBuffer = commandEncoder.Finish();
+        queue.Submit(1, commandBuffer);
         swapChain.Present();
         window.SwapBuffers();
     }

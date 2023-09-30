@@ -160,10 +160,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         foreach (var methodSymbol in SafetyFilter(constructionMethods))
         {
             var parameters = from parameterSymbol in methodSymbol.Parameters
-                             let parameter = Parameter(parameterSymbol)
-                             select IsHandleType(parameterSymbol.Type) ?
-                                    parameter.WithType(IdentifierName(GetWrapperName(parameterSymbol.Type))) :
-                                    parameter;
+                             select GetParameter(parameterSymbol);
 
             IEnumerable<ArgumentSyntax> arguments;
 
@@ -212,12 +209,10 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         foreach (var methodSymbol in SafetyFilter(methods[handleType]))
         {
             var parameters = from parameterSymbol in methodSymbol.Parameters.Skip(1)
-                             let parameter = Parameter(parameterSymbol)
-                             select parameter;
+                             select GetParameter(parameterSymbol);
 
             var arguments = from parameterSymbol in methodSymbol.Parameters.Skip(1)
-                            let argument = Argument(parameterSymbol)
-                            select argument;
+                            select GetArgument(parameterSymbol);
 
             var methodDeclaration = MethodDeclaration(ReturnTypeSyntax(methodSymbol), methodSymbol.Name.Replace(name, ""))
                                         .WithParameterList(parameters)
@@ -240,6 +235,14 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             }
 
             BlockSyntax body = Block();
+
+            foreach (var parameterSymbol in methodSymbol.Parameters.Skip(1))
+            {
+                if (IsHandleType(parameterSymbol.Type) is false) continue;
+
+                body = body.AddStatements(ParseStatement($"var {parameterSymbol.Name}Ref = {parameterSymbol.Name}.Handle;"));
+            }
+
 
             var apiMember = MethodApiMemberExpression(methodSymbol);
 
@@ -444,6 +447,62 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             if (IsHandleType(typeSymbol, returnType))
                 handleTypes.Add(methodSymbol.ReturnType);
         }
+    }
+
+
+    private ArgumentSyntax GetArgument(IParameterSymbol parameterSymbol)
+    {
+        ArgumentSyntax argument = Argument(parameterSymbol);
+
+        if (IsHandleType(parameterSymbol.Type))
+        {
+            return argument.WithExpression(IdentifierName($"{parameterSymbol.Name}Ref"));
+        }
+
+        return argument;
+    }
+
+    private ParameterSyntax GetParameter(IParameterSymbol parameterSymbol)
+    {
+        ParameterSyntax parameter = Parameter(parameterSymbol, IsHandleType(parameterSymbol.Type));
+
+
+        if (IsHandleType(parameterSymbol.Type))
+        {
+            return parameter.WithType(IdentifierName(GetWrapperName(parameterSymbol.Type)));
+        } 
+
+        return DefaultValueIfApplicable(parameter, parameterSymbol);
+    }
+
+    private ParameterSyntax DefaultValueIfApplicable(ParameterSyntax parameter, IParameterSymbol parameterSymbol)
+    {
+        if(parameterSymbol.RefKind is not ( RefKind.None or RefKind.In )) return parameter;
+        if(parameterSymbol.Type.IsValueType is false) return parameter;
+
+        //Not sure about this one
+        if(parameterSymbol.Type.Name.EndsWith("Descriptor") is false) return parameter;
+
+        var shouldDefault = true;
+
+        foreach (var member in parameterSymbol.Type.GetMembers())
+        {
+            if (member is not IFieldSymbol fieldSymbol) continue;
+            if(fieldSymbol.IsStatic) continue;
+
+            if(fieldSymbol.Name == "NextInChain" && fieldSymbol.Type.ToString().EndsWith("ChainedStruct*")) continue;
+            if(fieldSymbol.Name == "Label" && fieldSymbol.Type.ToString().EndsWith("byte*")) continue;
+
+            shouldDefault = false;
+            break;
+        }
+
+        if (shouldDefault) return parameter.WithDefault(EqualsValueClause(
+                                LiteralExpression(
+                                    SyntaxKind.DefaultLiteralExpression,
+                                    Token(SyntaxKind.DefaultKeyword))));
+
+        return parameter;
     }
 
     private bool IsAPIOwner(ITypeSymbol typeSymbol)

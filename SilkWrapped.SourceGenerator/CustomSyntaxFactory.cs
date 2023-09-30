@@ -113,10 +113,11 @@ internal static class CustomSyntaxFactory
     public static TypeSyntax TypeSyntax(ITypeSymbol typeSymbol)
         => ParseTypeName(typeSymbol.ToDisplayString());
 
-    public static ArgumentSyntax Argument(IParameterSymbol parameterSymbol)
+    public static ArgumentSyntax Argument(IParameterSymbol parameterSymbol, bool ignoreRefKind = false)
     {
         ArgumentSyntax result = SyntaxFactory.Argument(IdentifierName(parameterSymbol.Name));
 
+        if(ignoreRefKind) return result;
 
         return parameterSymbol.RefKind switch
         {
@@ -138,7 +139,7 @@ internal static class CustomSyntaxFactory
     public static ObjectCreationExpressionSyntax WithArgumentList(this ObjectCreationExpressionSyntax declaration, params ArgumentSyntax[] arguments)
         => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
 
-    public static ParameterSyntax Parameter(IParameterSymbol parameter)
+    public static ParameterSyntax Parameter(IParameterSymbol parameter, bool ignoreRefKind = false)
     {
         var result = SyntaxFactory.Parameter(Identifier(parameter.Name))
                         .WithType(TypeSyntax(parameter.Type));
@@ -146,6 +147,7 @@ internal static class CustomSyntaxFactory
         if (parameter.HasExplicitDefaultValue)
             result = result.WithDefault(EqualsValueClause(LiteralExpression(parameter.ExplicitDefaultValue!)));
 
+        if (ignoreRefKind) return result;
 
         return parameter.RefKind switch
         {
