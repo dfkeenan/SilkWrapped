@@ -301,6 +301,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         if(disposalMethods.Any())
         {
             var disposeMethodStatements = new SyntaxList<StatementSyntax>();
+            disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("if (Handle == default) return;"));
+
             int ifCount = 0;
 
             foreach (var disposalMethod in disposalMethods.OrderByPriority(disposeMethodPriority))
