@@ -301,11 +301,13 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         if(disposalMethods.Any())
         {
             var disposeMethodStatements = new SyntaxList<StatementSyntax>();
+            int ifCount = 0;
 
             foreach (var disposalMethod in disposalMethods.OrderByPriority(disposeMethodPriority))
             { 
                 string statement;
                 string apiMember = MethodApiMember(disposalMethod);
+                bool isIfStatement = false;
 
                 if(Equals(apiType!, disposalMethod.ContainingType))
                 {
@@ -314,15 +316,20 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                 else
                 {
                     statement = $"if ({apiMember} != null) {apiMember}.{disposalMethod.Name}(Handle);";
+                    isIfStatement = true;
                 }
 
-                if(disposeMethodStatements.Count > 0)
+                if(ifCount > 0)
                 {
                     statement = "else " + statement;
                 }
 
                 disposeMethodStatements = disposeMethodStatements.Add(ParseStatement(statement));
 
+                if(isIfStatement)
+                {
+                    ifCount++;
+                }
             }
 
 

@@ -6,21 +6,24 @@ using System.Threading.Tasks;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.WebGPU;
+using Silk.NET.WebGPU.Extensions.Dawn;
+using Silk.NET.WebGPU.Extensions.WGPU;
 using Silk.NET.Windowing;
 
 namespace SilkWrapped.WebGPU.Example;
-internal unsafe class Demo : IDisposable
+internal class Demo : IDisposable
 {
     private IWindow window = default!;
     private IInputContext input = default!;
     private IKeyboard keyboard;
     private InstanceWrapper instance;
     private SurfaceWrapper surface;
+    private SurfaceCapabilities surfaceCapabilities;
     private AdapterWrapper adapter;
     private DeviceWrapper device;
-    private SwapChainWrapper swapChain;
+    
     private QueueWrapper queue;
-    private TextureFormat swapChainFormat;
+    private SurfaceConfiguration surfaceConfiguration;
 
     public Demo()
     {
@@ -29,7 +32,7 @@ internal unsafe class Demo : IDisposable
     public void Dispose()
     {
         queue?.Dispose();
-        swapChain?.Dispose();
+        
         device?.Dispose();
         adapter?.Dispose();
         surface?.Dispose();
@@ -60,61 +63,36 @@ internal unsafe class Demo : IDisposable
         window.Run();
     }
 
-    private void OnLoad()
+    private async void OnLoad()
     {
         input = window.CreateInput();
         keyboard = input.Keyboards[0];
 
         instance = new InstanceWrapper();
         surface = window.CreateWebGPUSurface(instance);
-        int dummy = 69;
-        
-        instance.RequestAdapter(new RequestAdapterOptions() { CompatibleSurface = surface },
-            new PfnRequestAdapterCallback((arg0, arg1, arg2, arg3) =>
-            {
-                if (arg0 == RequestAdapterStatus.Success)
-                {
-                    adapter = new AdapterWrapper(instance.Api, arg1);
-                }
-            }),
-            ref dummy);
 
-        if (adapter != null)
-        {
-            var dd = new DeviceDescriptor
-            {
-                
-            };
+        adapter = await instance.RequestAdapterAsync(surface);
+        device = await adapter.RequestDeviceAsync();
 
-            adapter.RequestDevice(dd,
-                new PfnRequestDeviceCallback((arg0, arg1, arg2, arg3) =>
-                {
-                    if (arg0 == RequestDeviceStatus.Success)
-                    {
-                        device = new DeviceWrapper(instance.Api, arg1);
-                    }
-                }), ref dummy);
-        }
+        surface.GetCapabilities(adapter, ref surfaceCapabilities);
+
         queue = device.GetQueue();
         CreateSwapChain();
     }
 
-    private void CreateSwapChain()
+    private unsafe void CreateSwapChain()
     {
-        if (device != null)
+        surfaceConfiguration = new SurfaceConfiguration
         {
-            swapChain?.Dispose();
-            swapChainFormat = surface.GetPreferredFormat(adapter);
-            var scd = new SwapChainDescriptor
-            {
-                Usage = TextureUsage.RenderAttachment,
-                Format = swapChainFormat,
-                Width = (uint)window.Size.X,
-                Height = (uint)window.Size.Y,
-                PresentMode = PresentMode.Fifo,
-            };
-            swapChain = device.CreateSwapChain(surface, scd);
-        }
+            Usage = TextureUsage.RenderAttachment,
+            Format = surfaceCapabilities.Formats[0],
+            PresentMode = PresentMode.Fifo,
+            Device = device,
+            Width = (uint)window.FramebufferSize.X,
+            Height = (uint)window.FramebufferSize.Y
+        };
+
+        surface.Configure(surfaceConfiguration);
     }
 
     private void OnUpdate(double obj)
@@ -125,17 +103,34 @@ internal unsafe class Demo : IDisposable
         }
     }
 
-    private void OnRender(double obj)
+    private unsafe void OnRender(double obj)
     {
-        using var swapChainView = swapChain.GetCurrentTextureView();
+        var (status, surfaceTexture) = surface.GetCurrentTexture();
+        switch (status)
+        {
+            case SurfaceGetCurrentTextureStatus.Timeout:
+            case SurfaceGetCurrentTextureStatus.Outdated:
+            case SurfaceGetCurrentTextureStatus.Lost:
+                // Recreate swapchain,
+                surfaceTexture.Dispose();
+                CreateSwapChain();
+                // Skip this frame
+                return;
+            case SurfaceGetCurrentTextureStatus.OutOfMemory:
+            case SurfaceGetCurrentTextureStatus.DeviceLost:
+            case SurfaceGetCurrentTextureStatus.Force32:
+                throw new Exception($"What is going on bros... {status}");
+        }
+
+        using var surfaceTextureView = surfaceTexture.CreateView();
 
         var colorAttachments = stackalloc RenderPassColorAttachment[1];
         colorAttachments[0] = new RenderPassColorAttachment
         {
-            ClearValue = new Color(100 / 255.0, 149 / 255.0, 237 / 255.0, 1),
+            ClearValue = new (100 / 255.0, 149 / 255.0, 237 / 255.0, 1),
             LoadOp = LoadOp.Clear,
             StoreOp = StoreOp.Store,
-            View = swapChainView,
+            View = surfaceTextureView,
         };
 
         var renderPassDesc = new RenderPassDescriptor
@@ -149,7 +144,7 @@ internal unsafe class Demo : IDisposable
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
         queue.Submit(1, commandBuffer);
-        swapChain.Present();
+        surface.Present();
         window.SwapBuffers();
     }
 }

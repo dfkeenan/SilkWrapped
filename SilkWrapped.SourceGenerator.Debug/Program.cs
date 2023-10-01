@@ -11,7 +11,7 @@ using SilkWrapped.SourceGenerator;
 
 namespace SilkWrapped.WebGPU;
 
-[ApiContainer(typeof(Silk.NET.WebGPU.Instance))]
+[ApiContainer(typeof(Silk.NET.WebGPU.Instance), HandleTypeNameExclusionPattern = "(Pfn).*|.*Descriptor|InstanceFeatures|Future")]
 public unsafe partial class ApiContainer
 {
     public ApiContainer()
