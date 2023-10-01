@@ -103,6 +103,22 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                                                                     SingletonSeparatedList(
                                                                         VariableDeclarator(
                                                                             Identifier("result"))));
+
+    private static readonly VariableDeclarationSyntax resultWrapperVariable = VariableDeclaration(
+                                                    IdentifierName(
+                                                        Identifier(
+                                                            TriviaList(),
+                                                            SyntaxKind.VarKeyword,
+                                                            "var",
+                                                            "var",
+                                                            TriviaList())))
+                                                                .WithVariables(
+                                                                    SingletonSeparatedList(
+                                                                        VariableDeclarator(
+                                                                            Identifier("resultWrapper"))));
+
+
+
     private static readonly ReturnStatementSyntax returnResultStatement = ReturnStatement(IdentifierName("result"));
     private static readonly ArgumentListSyntax wrapperCreationArgumentList = ArgumentList(
                             SeparatedList<ArgumentSyntax>(
@@ -146,6 +162,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         var name = GetName(handleType);
         var isApiOwner = IsAPIOwner(handleType);
         var members = new List<MemberDeclarationSyntax>();
+
+        var createdWrapperCallbackNames = new HashSet<string>();
 
         var constructionMethods = this.constructionMethods[handleType];
 
@@ -264,9 +282,18 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
                 if(IsHandleType(methodSymbol.ReturnType))
                 {
-                    returnStatement = ReturnStatement(ObjectCreationExpression(IdentifierName(GetWrapperName(methodSymbol.ReturnType)))
-                                        .WithArgumentList(wrapperCreationArgumentList));
-                    body = body.AddStatements(LocalDeclarationStatement(resultVariable.WithInitializer(invocationExpression)), returnIfNull, returnStatement);
+                    string resultWrapperName = GetWrapperName(methodSymbol.ReturnType);
+                    var resultWrapperDeclaration = LocalDeclarationStatement(resultWrapperVariable.WithInitializer(ObjectCreationExpression(IdentifierName(resultWrapperName))
+                                        .WithArgumentList(wrapperCreationArgumentList)));
+                    var createdCallbackName = $"{resultWrapperName}Created";
+                    var createdCallback = ParseStatement($"{createdCallbackName}(resultWrapper);");
+                    returnStatement = ReturnStatement(IdentifierName("resultWrapper"));
+                    body = body.AddStatements(LocalDeclarationStatement(resultVariable.WithInitializer(invocationExpression)), returnIfNull, resultWrapperDeclaration, createdCallback, returnStatement);
+
+                    if (createdWrapperCallbackNames.Add(createdCallbackName))
+                    {
+                        members.Add(ParseMemberDeclaration($"partial void {createdCallbackName}({resultWrapperName} value);")!);
+                    }
                 }
                 else
                 {
@@ -302,6 +329,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         {
             var disposeMethodStatements = new SyntaxList<StatementSyntax>();
             disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("if (Handle == default) return;"));
+            disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Disposing();"));
 
             int ifCount = 0;
 
@@ -340,7 +368,12 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                 disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Api.Dispose();"));
             }
 
-            declaration = declaration.AddDispose(b => b.AddStatements(disposeMethodStatements));
+
+            disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Disposed();"));
+
+            declaration = declaration.AddDispose(b => b.AddStatements(disposeMethodStatements))
+                                     .AddMembers(ParseMemberDeclaration($"partial void Disposing();")!,
+                                     ParseMemberDeclaration($"partial void Disposed();")!);
         }
 
         return declaration;

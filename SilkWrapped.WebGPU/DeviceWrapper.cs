@@ -23,4 +23,19 @@ public unsafe partial class DeviceWrapper
 
         return result;
     }
+
+    partial void TextureWrapperCreated(TextureWrapper value)
+    {
+        
+    }
+
+    partial void Disposing()
+    {
+        
+    }
+
+    partial void Disposed()
+    {
+        
+    }
 }

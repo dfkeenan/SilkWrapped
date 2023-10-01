@@ -151,7 +151,7 @@ internal class Demo : IDisposable
         unsafe
         {
             { //Create texture and texture view
-                var image = Image.Load<Rgba32>("silk.png");
+                using var image = Image.Load<Rgba32>("silk.png");
 
                 var viewFormat = TextureFormat.Rgba8Unorm;
 
