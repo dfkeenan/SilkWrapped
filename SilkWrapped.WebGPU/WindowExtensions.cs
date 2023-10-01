@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Silk.NET.Core.Contexts;
-using Silk.NET.WebGPU;
+﻿using Silk.NET.Core.Contexts;
 
 namespace SilkWrapped.WebGPU;
 public unsafe static class WindowExtensions

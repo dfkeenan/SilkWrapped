@@ -1,6 +1,4 @@
-﻿using Silk.NET.WebGPU;
-using Silk.NET.WebGPU.Extensions.Dawn;
-//using Silk.NET.WebGPU.Extensions.WGPU;
+﻿//using Silk.NET.WebGPU.Extensions.WGPU;
 using SilkWrapped.SourceGenerator;
 
 namespace SilkWrapped.WebGPU;
