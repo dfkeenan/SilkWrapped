@@ -10,9 +10,20 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <None Remove="silk.png" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="silk.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Silk.NET.Input" Version="2.17.1-build3832.0" />
         <PackageReference Include="Silk.NET.Windowing" Version="2.17.1-build3832.0" />
         <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.17.1-build3832.0" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.0.2" />
     </ItemGroup>
 
     <ItemGroup>

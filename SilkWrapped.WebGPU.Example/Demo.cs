@@ -1,20 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
-using Silk.NET.Core.Native;
-using Silk.NET.Input;
+﻿using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.WebGPU;
-using Silk.NET.WebGPU.Extensions.Dawn;
-using Silk.NET.WebGPU.Extensions.WGPU;
 using Silk.NET.Windowing;
+using System.Numerics;
+using SixLabors.ImageSharp;
+using Silk.NET.WebGPU.Extensions.WGPU;
 
 namespace SilkWrapped.WebGPU.Example;
 internal class Demo : IDisposable
 {
+    public struct Vertex
+    {
+        public Vertex(Vector2 position, Vector2 texCoord)
+        {
+            Position = position;
+            TexCoord = texCoord;
+        }
+
+        public Vector2 Position;
+        public Vector2 TexCoord;
+    }
+
     private IWindow window = default!;
     private IInputContext input = default!;
     private IKeyboard keyboard;
@@ -28,6 +34,21 @@ internal class Demo : IDisposable
     private SurfaceConfiguration surfaceConfiguration;
     private ShaderModuleWrapper shader;
     private RenderPipelineWrapper renderPipeline;
+
+    private BufferWrapper vertexBuffer;
+    private ulong vertexBufferSize;
+
+    private TextureWrapper texture;
+    private TextureViewWrapper textureView;
+    private SamplerWrapper sampler;
+
+    private BindGroupWrapper textureBindGroup;
+    private BindGroupLayoutWrapper textureSamplerBindGroupLayout;
+
+    private BufferWrapper projectionMatrixBuffer;
+    private BindGroupLayoutWrapper projectionMatrixBindGroupLayout;
+    private BindGroupWrapper projectionMatrixBindGroup;
+
 
     public Demo()
     {
@@ -63,9 +84,16 @@ internal class Demo : IDisposable
         window.Load += OnLoad;
         window.Update += OnUpdate;
         window.Render += OnRender;
+        window.FramebufferResize += FramebufferResize;
 
         //Run the window.
         window.Run();
+    }
+
+    private  void FramebufferResize(Vector2D<int> obj)
+    {
+        CreateSwapChain();
+        UpdateProjectionMatrix();
     }
 
     private async void OnLoad()
@@ -80,45 +108,331 @@ internal class Demo : IDisposable
         device = await adapter.RequestDeviceAsync();
         surface.GetCapabilities(adapter, ref surfaceCapabilities);
         queue = device.GetQueue();
+
         CreateSwapChain();
 
         var shaderCode =
             """
-            @vertex
-            fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
-                let x = f32(i32(in_vertex_index) - 1);
-                let y = f32(i32(in_vertex_index & 1u) * 2 - 1);
-                return vec4<f32>(x, y, 0.0, 1.0);
+            struct VertexOutputs {
+                //The position of the vertex
+                @builtin(position) position: vec4<f32>,
+                //The texture cooridnate of the vertex
+                @location(0) tex_coord: vec2<f32>
             }
 
+            @group(1) @binding(0) var<uniform> projection_matrix: mat4x4<f32>;
+
+            @vertex
+            fn vs_main(
+                @location(0) pos: vec2<f32>,
+                @location(1) tex_coord: vec2<f32>
+            ) -> VertexOutputs {
+                var output: VertexOutputs;
+
+                output.position = projection_matrix * vec4<f32>(pos, 0.0, 1.0);
+                output.tex_coord = tex_coord;
+
+                return output;
+            }
+
+            //The texture we're sampling
+            @group(0) @binding(0) var t: texture_2d<f32>;
+            //The sampler we're using to sample the texture
+            @group(0) @binding(1) var s: sampler;
+
             @fragment
-            fn fs_main() -> @location(0) vec4<f32> {
-                return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+            fn fs_main(input: VertexOutputs) -> @location(0) vec4<f32> {
+                return textureSample(t, s, input.tex_coord);
             }
             """;
 
         shader = device.CreateShaderModuleWGSL(shaderCode);
+
+        unsafe
+        {
+            { //Create texture and texture view
+                var image = Image.Load<Rgba32>("silk.png");
+
+                var viewFormat = TextureFormat.Rgba8Unorm;
+
+                var descriptor = new TextureDescriptor
+                {
+                    Size = new Extent3D((uint)image.Width, (uint)image.Height, 1),
+                    Format = TextureFormat.Rgba8Unorm,
+                    Usage = TextureUsage.CopyDst | TextureUsage.TextureBinding,
+                    MipLevelCount = 1,
+                    SampleCount = 1,
+                    Dimension = TextureDimension.Dimension2D,
+                    ViewFormats = &viewFormat,
+                    ViewFormatCount = 1
+                };
+
+                texture = device.CreateTexture(descriptor);
+
+                var viewDescriptor = new TextureViewDescriptor
+                {
+                    Format = TextureFormat.Rgba8Unorm,
+                    Dimension = TextureViewDimension.Dimension2D,
+                    Aspect = TextureAspect.All,
+                    MipLevelCount = 1,
+                    ArrayLayerCount = 1,
+                    BaseArrayLayer = 0,
+                    BaseMipLevel = 0
+                };
+
+                textureView = texture.CreateView(viewDescriptor);
+
+                var queue = device.GetQueue();
+
+                var commandEncoder = device.CreateCommandEncoder();
+
+                image.ProcessPixelRows
+                (
+                    x =>
+                    {
+                        for (var i = 0; i < x.Height; i++)
+                        {
+                            var imageRow = x.GetRowSpan(i);
+
+                            var imageCopyTexture = new ImageCopyTexture
+                            {
+                                Texture = texture,
+                                Aspect = TextureAspect.All,
+                                MipLevel = 0,
+                                Origin = new Origin3D(0, (uint)i, 0)
+                            };
+
+                            var layout = new TextureDataLayout
+                            {
+                                BytesPerRow = (uint)(x.Width * sizeof(Rgba32)),
+                                RowsPerImage = (uint)x.Height
+                            };
+                            // layout.Offset = layout.BytesPerRow * (uint) i;
+
+                            var extent = new Extent3D
+                            {
+                                Width = (uint)x.Width,
+                                Height = 1,
+                                DepthOrArrayLayers = 1
+                            };
+                            //fixed (void* dataPtr = imageRow)
+                            queue.WriteTexture(imageCopyTexture, imageRow[0], (nuint)(sizeof(Rgba32) * imageRow.Length), layout, extent);
+                        }
+                    }
+                );
+
+                var commandBuffer = commandEncoder.Finish();
+
+               queue.Submit(1, commandBuffer);
+            } //Create texture and texture view
+
+
+
+
+            { //Create sampler
+                var descriptor = new SamplerDescriptor
+                {
+                    Compare = CompareFunction.Undefined,
+                    MipmapFilter = MipmapFilterMode.Linear,
+                    MagFilter = FilterMode.Linear,
+                    MinFilter = FilterMode.Linear,
+                    MaxAnisotropy = 1
+                };
+
+                sampler = device.CreateSampler(descriptor);
+            } //Create sampler
+
+            { //Create bind group for sampler and textureview
+                var entries = stackalloc BindGroupLayoutEntry[2];
+                entries[0] = new BindGroupLayoutEntry
+                {
+                    Binding = 0,
+                    Texture = new TextureBindingLayout
+                    {
+                        Multisampled = false,
+                        SampleType = TextureSampleType.Float,
+                        ViewDimension = TextureViewDimension.Dimension2D
+                    },
+                    Visibility = ShaderStage.Fragment
+                };
+                entries[1] = new BindGroupLayoutEntry
+                {
+                    Binding = 1,
+                    Sampler = new SamplerBindingLayout
+                    {
+                        Type = SamplerBindingType.Filtering
+                    },
+                    Visibility = ShaderStage.Fragment
+                };
+
+                var layoutDescriptor = new BindGroupLayoutDescriptor
+                {
+                    Entries = entries,
+                    EntryCount = 2
+                };
+
+                textureSamplerBindGroupLayout = device.CreateBindGroupLayout(layoutDescriptor);
+
+                var bindGroupEntries = stackalloc BindGroupEntry[2];
+                bindGroupEntries[0] = new BindGroupEntry
+                {
+                    Binding = 0,
+                    TextureView = textureView
+                };
+                bindGroupEntries[1] = new BindGroupEntry
+                {
+                    Binding = 1,
+                    Sampler = sampler
+                };
+
+                var descriptor = new BindGroupDescriptor
+                {
+                    Entries = bindGroupEntries,
+                    EntryCount = 2,
+                    Layout = textureSamplerBindGroupLayout
+                };
+
+                textureBindGroup = device.CreateBindGroup(descriptor);
+            } //Create bind group for sampler and texture view
+
+            { //Create buffer to store projection matrix
+                var descriptor = new BufferDescriptor
+                {
+                    Size = (ulong)sizeof(Matrix4x4),
+                    Usage = BufferUsage.Uniform | BufferUsage.CopyDst,
+                    MappedAtCreation = false
+                };
+
+                projectionMatrixBuffer = device.CreateBuffer(descriptor);
+
+                UpdateProjectionMatrix();
+            } //Create buffer to store projection matrix
+
+            { //Create bind group for projection matrix
+                var entry = new BindGroupLayoutEntry
+                {
+                    Binding = 0,
+                    Buffer = new BufferBindingLayout
+                    {
+                        Type = BufferBindingType.Uniform,
+                        MinBindingSize = (ulong)sizeof(Matrix4x4)
+                    },
+                    Visibility = ShaderStage.Vertex,
+                };
+
+                projectionMatrixBindGroupLayout = device.CreateBindGroupLayout
+                (
+                    new BindGroupLayoutDescriptor
+                    {
+                        Entries = &entry,
+                        EntryCount = 1
+                    }
+                );
+
+                var bindGroupEntry = new BindGroupEntry
+                {
+                    Binding = 0,
+                    Buffer = projectionMatrixBuffer,
+                    Size = (ulong)sizeof(Matrix4x4)
+                };
+
+                projectionMatrixBindGroup = device.CreateBindGroup
+                (
+                    new BindGroupDescriptor
+                    {
+                        Entries = &bindGroupEntry,
+                        EntryCount = 1,
+                        Layout = projectionMatrixBindGroupLayout
+                    }
+                );
+            } //Create bind group for projection matrix 
+
+            { //Create vertex buffer
+                var descriptor = new BufferDescriptor
+                {
+                    Size = vertexBufferSize = (ulong)(sizeof(Vertex) * 6),
+                    Usage = BufferUsage.Vertex | BufferUsage.CopyDst
+                };
+
+                vertexBuffer = device.CreateBuffer(descriptor);
+
+                //Get a queue
+                var queue = device.GetQueue();
+
+                var data = stackalloc Vertex[6];
+
+                const float xPos = 100;
+                const float yPos = 100;
+                const float width = 271;
+                const float height = 271;
+
+                //Fill data with a quad with a CCW front face
+                data[0] = new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)); //Top left
+                data[1] = new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0));  //Top right
+                data[2] = new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1));   //Bottom right
+                data[3] = new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)); //Top left
+                data[4] = new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1));   //Bottom right
+                data[5] = new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1));  //Bottom left
+
+                //Write the data to the buffer
+                queue.WriteBuffer(vertexBuffer, 0, data[0], (nuint)vertexBufferSize);
+
+                //Create a new command encoder
+                var commandEncoder = device.CreateCommandEncoder();
+
+                //Finish the command encoder
+                var commandBuffer = commandEncoder.Finish();
+
+                queue.Submit(1, commandBuffer);
+            } //Create vertex buffer
+        }
+
 
         CreateRenderPipeline();
     }
 
     private unsafe void CreateRenderPipeline()
     {
-        fixed(byte* fs_main = ("fs_main"u8))
+        var vertexAttributes = stackalloc VertexAttribute[2];
+
+        vertexAttributes[0] = new VertexAttribute
+        {
+            Format = VertexFormat.Float32x2,
+            Offset = 0,
+            ShaderLocation = 0
+        };
+        vertexAttributes[1] = new VertexAttribute
+        {
+            Format = VertexFormat.Float32x2,
+            Offset = (ulong)sizeof(Vector2),
+            ShaderLocation = 1
+        };
+
+        var vertexBufferLayout = new VertexBufferLayout
+        {
+            Attributes = vertexAttributes,
+            AttributeCount = 2,
+            StepMode = VertexStepMode.Vertex,
+            ArrayStride = (ulong)sizeof(Vertex)
+        };
+
+
+
+        fixed (byte* fs_main = ("fs_main"u8))
         fixed(byte* vs_main = ("vs_main"u8))
         {
             var blendState = new BlendState
             {
                 Color = new BlendComponent
                 {
-                    SrcFactor = BlendFactor.One,
-                    DstFactor = BlendFactor.Zero,
+                    SrcFactor = BlendFactor.SrcAlpha,
+                    DstFactor = BlendFactor.OneMinusSrcAlpha,
                     Operation = BlendOperation.Add
                 },
                 Alpha = new BlendComponent
                 {
                     SrcFactor = BlendFactor.One,
-                    DstFactor = BlendFactor.Zero,
+                    DstFactor = BlendFactor.OneMinusSrcAlpha,
                     Operation = BlendOperation.Add
                 }
             };            
@@ -138,12 +452,26 @@ internal class Demo : IDisposable
                 EntryPoint = fs_main
             };
 
+            var bindGroupLayouts = stackalloc BindGroupLayout*[2];
+            bindGroupLayouts[0] = textureSamplerBindGroupLayout;
+            bindGroupLayouts[1] = projectionMatrixBindGroupLayout;
+
+            var pipelineLayoutDescriptor = new PipelineLayoutDescriptor
+            {
+                BindGroupLayoutCount = 2,
+                BindGroupLayouts = bindGroupLayouts
+            };
+
+            using var pipelineLayout = device.CreatePipelineLayout(pipelineLayoutDescriptor);
+
             var renderPipelineDescriptor = new RenderPipelineDescriptor
             {
                 Vertex = new VertexState
                 {
                     Module = shader,
                     EntryPoint = vs_main,
+                    Buffers = &vertexBufferLayout,
+                    BufferCount = 1
                 },
                 Primitive = new PrimitiveState
                 {
@@ -159,7 +487,8 @@ internal class Demo : IDisposable
                     AlphaToCoverageEnabled = false
                 },
                 Fragment = &fragmentState,
-                DepthStencil = null
+                DepthStencil = null,
+                Layout = pipelineLayout
             };
 
             renderPipeline = device.CreateRenderPipeline(renderPipelineDescriptor);
@@ -179,6 +508,20 @@ internal class Demo : IDisposable
         };
 
         surface.Configure(surfaceConfiguration);
+    }
+
+    private unsafe void UpdateProjectionMatrix()
+    {
+        var queue = device.GetQueue();
+
+        var commandEncoder = device.CreateCommandEncoder();
+        var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window.Size.X, window.Size.Y, 0, 0, 1);
+
+        queue.WriteBuffer(projectionMatrixBuffer, 0, projectionMatrix, (nuint)sizeof(Matrix4x4));
+
+        var commandBuffer = commandEncoder.Finish();
+
+        queue.Submit(1, commandBuffer);
     }
 
     private void OnUpdate(double obj)
@@ -213,7 +556,7 @@ internal class Demo : IDisposable
         var colorAttachments = stackalloc RenderPassColorAttachment[1];
         colorAttachments[0] = new RenderPassColorAttachment
         {
-            ClearValue = new (100 / 255.0, 149 / 255.0, 237 / 255.0, 1),
+            ClearValue = new (0, 0, 0, 1),
             LoadOp = LoadOp.Clear,
             StoreOp = StoreOp.Store,
             View = surfaceTextureView,
@@ -228,7 +571,10 @@ internal class Demo : IDisposable
         using var commandEncoder = device.CreateCommandEncoder();
         using var renderPassEncoder = commandEncoder.BeginRenderPass(renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
-        renderPassEncoder.Draw(3,1 ,0, 0);
+        renderPassEncoder.SetBindGroup(0, textureBindGroup, 0, 0);
+        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup, 0, 0);
+        renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBufferSize);
+        renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
         queue.Submit(1, commandBuffer);
