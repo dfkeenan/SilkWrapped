@@ -57,6 +57,17 @@ internal class Demo : IDisposable
     public void Dispose()
     {
         renderPipeline?.Dispose();
+
+        projectionMatrixBindGroup?.Dispose();
+        projectionMatrixBindGroupLayout?.Dispose();
+        projectionMatrixBuffer?.Dispose();
+
+        vertexBuffer?.Dispose();
+        textureBindGroup?.Dispose();
+        textureSamplerBindGroupLayout?.Dispose();
+        textureView?.Dispose();
+        texture?.Dispose();
+        sampler?.Dispose();
         shader?.Dispose();
         queue?.Dispose();
         device?.Dispose();
@@ -182,9 +193,9 @@ internal class Demo : IDisposable
 
                 textureView = texture.CreateView(viewDescriptor);
 
-                var queue = device.GetQueue();
+                using var queue = device.GetQueue();
 
-                var commandEncoder = device.CreateCommandEncoder();
+                using var commandEncoder = device.CreateCommandEncoder();
 
                 image.ProcessPixelRows
                 (
@@ -221,7 +232,7 @@ internal class Demo : IDisposable
                     }
                 );
 
-                var commandBuffer = commandEncoder.Finish();
+                using var commandBuffer = commandEncoder.Finish();
 
                queue.Submit(1, commandBuffer);
             } //Create texture and texture view
@@ -357,7 +368,7 @@ internal class Demo : IDisposable
                 vertexBuffer = device.CreateBuffer(descriptor);
 
                 //Get a queue
-                var queue = device.GetQueue();
+                using var queue = device.GetQueue();
 
                 var data = stackalloc Vertex[6];
 
@@ -378,10 +389,10 @@ internal class Demo : IDisposable
                 queue.WriteBuffer(vertexBuffer, 0, data[0], (nuint)vertexBufferSize);
 
                 //Create a new command encoder
-                var commandEncoder = device.CreateCommandEncoder();
+                using var commandEncoder = device.CreateCommandEncoder();
 
                 //Finish the command encoder
-                var commandBuffer = commandEncoder.Finish();
+                using var commandBuffer = commandEncoder.Finish();
 
                 queue.Submit(1, commandBuffer);
             } //Create vertex buffer
@@ -512,14 +523,14 @@ internal class Demo : IDisposable
 
     private unsafe void UpdateProjectionMatrix()
     {
-        var queue = device.GetQueue();
+        using var queue = device.GetQueue();
 
-        var commandEncoder = device.CreateCommandEncoder();
+        using var commandEncoder = device.CreateCommandEncoder();
         var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window.Size.X, window.Size.Y, 0, 0, 1);
 
         queue.WriteBuffer(projectionMatrixBuffer, 0, projectionMatrix, (nuint)sizeof(Matrix4x4));
 
-        var commandBuffer = commandEncoder.Finish();
+        using var commandBuffer = commandEncoder.Finish();
 
         queue.Submit(1, commandBuffer);
     }
