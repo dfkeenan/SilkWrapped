@@ -116,19 +116,9 @@ public class ObjectModelSourceGenerator : IIncrementalGenerator
            })
             .Where(o => o.apiOwnerType is not null);
 
-        var silkTypes = context.CompilationProvider.Select<Compilation, (INamedTypeSymbol? nativeApiType, INamedTypeSymbol? extensionAttributeType)>((c, ct) =>
-        {
-            return
-            (
-                c.GetTypeByMetadataName("Silk.NET.Core.Native.NativeAPI"),
-                c.GetTypeByMetadataName("Silk.NET.Core.Attributes.ExtensionAttribute")
-            );
-        });
-
-        var objectModel = apiContainer.Combine(silkTypes)
-            .Where(c => c.Right.nativeApiType is not null && c.Right.extensionAttributeType is not null)
+        var objectModel = apiContainer
             .Select((c, ct) =>
-                new ObjectModelGenerator(c.Left.containerType!, c.Left.apiOwnerType!, c.Left.options!, c.Right.nativeApiType!, c.Right.extensionAttributeType!));
+                new ObjectModelGenerator(c.containerType!, c.apiOwnerType!, c.options!));
 
 
         //var replaceAttributes = context.SyntaxProvider.ForAttributeWithMetadataName($"{Namespace}.{ReplaceMethodAttributeName}",

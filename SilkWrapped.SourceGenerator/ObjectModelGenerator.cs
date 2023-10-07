@@ -25,7 +25,7 @@ internal record class GeneratorOptions
 
 internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 {
-    public ObjectModelGenerator(INamedTypeSymbol containerType, ITypeSymbol apiOwnerType, GeneratorOptions options, INamedTypeSymbol nativeApiType, INamedTypeSymbol extensionAttributeType)
+    public ObjectModelGenerator(INamedTypeSymbol containerType, ITypeSymbol apiOwnerType, GeneratorOptions options)
     {
 
         rootNamespace = NamespaceDeclaration(ParseName(containerType.ContainingNamespace.ToString()));
@@ -39,14 +39,14 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         {
             if (member is not IPropertySymbol property) continue;
             //property.ty
-            if (property.Type.Is(nativeApiType))
+            if (property.Type.Is("Silk.NET.Core.Native.NativeAPI"))
             {
                 apiType = property.Type.WithNullableAnnotation(NullableAnnotation.None);
                 apiProperty = property;
                 continue;
             }
 
-            if(property.Type.GetAttributes().Any(a => a.AttributeClass?.Is(extensionAttributeType) is true))
+            if(property.Type.GetAttributes().Any(a => a.AttributeClass?.Is("Silk.NET.Core.Attributes.ExtensionAttribute") is true))
             {
                 extensionTypes.Add(property.Type.WithNullableAnnotation(NullableAnnotation.None));
                 extensionProperties.Add(property);
@@ -89,6 +89,9 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     private readonly MethodSymbolGroupCollection disposalMethods = new();
     private readonly HashSet<ITypeSymbol> handleTypes = new (SymbolEqualityComparer.Default);
     Dictionary<ITypeSymbol, int> disposeMethodPriority;
+
+    private readonly List<INamedTypeSymbol> delegateTypeSymbols = new();
+    private readonly Dictionary<string, IMethodSymbol> delegateMethodSymbols = new();
 
     private static readonly ArgumentSyntax handleArgument = Argument(IdentifierName("Handle"));
     private static readonly VariableDeclarationSyntax resultVariable = VariableDeclaration(
@@ -145,6 +148,11 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         foreach (var handleType in handleTypes)
         {
             yield return GetOutput(GetWrapper(handleType));
+        }
+
+        foreach (var delegateType in delegateTypeSymbols)
+        {
+            yield return GetOutput(GetDelegate(delegateType));
         }
 
     }
@@ -256,11 +264,35 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
             foreach (var parameterSymbol in methodSymbol.Parameters.Skip(1))
             {
-                if (IsHandleType(parameterSymbol.Type) is false) continue;
+                if (IsFuntionPointer(parameterSymbol.Type))
+                {
+                    var functionPointerParameters = GetFunctionPointerParameters(parameterSymbol.Type);
+                    var callbackParameters = from parameter in functionPointerParameters
+                                             select (SyntaxFactory.Parameter(Identifier(parameter.Name)));
 
-                body = body.AddStatements(ParseStatement($"var {parameterSymbol.Name}Ref = {parameterSymbol.Name}.Handle;"));
+                    var callbackArguments = from parameter in functionPointerParameters
+                                            select GetCallbackArgument(parameter, handleType);
+
+
+                    body = body.AddStatements(LocalDeclarationStatement(
+                        VariableDeclaration(TypeSyntax(parameterSymbol.Type))
+                            .WithVariables(VariableDeclarator(Identifier($"{parameterSymbol.Name}Pfn"))
+                                .WithInitializer(EqualsValueClause
+                                    (ObjectCreationExpression(TypeSyntax(parameterSymbol.Type))
+                                        .WithArgumentList(Argument(ParenthesizedLambdaExpression()
+                                            .WithParameterList(callbackParameters)
+                                                .WithBlock(Block()
+                                                    .AddStatements(ExpressionStatement(
+                                                        InvocationExpression(IdentifierName(parameterSymbol.Name))
+                                                            .WithArgumentList(callbackArguments))))
+                                            )))))));
+                }
+                else if (IsHandleType(parameterSymbol.Type))
+                {
+                    body = body.AddStatements(ParseStatement($"var {parameterSymbol.Name}Ref = {parameterSymbol.Name}.Handle;"));
+                }
+
             }
-
 
             var apiMember = MethodApiMemberExpression(methodSymbol);
 
@@ -379,6 +411,17 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return declaration;
     }
 
+    private DelegateDeclarationSyntax GetDelegate(INamedTypeSymbol delegateType)
+    {
+        IMethodSymbol methodSymbol = delegateType.DelegateInvokeMethod!;
+        var parameters = from parameterSymbol in methodSymbol.Parameters
+                         select GetParameter(parameterSymbol);
+
+        return DelegateDeclaration(ReturnTypeSyntax(methodSymbol), Identifier(delegateType.Name))
+                    .WithModifiers(SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword)
+                    .WithParameterList(parameters);
+    }
+
     private ExpressionSyntax MethodApiMemberExpression(IMethodSymbol methodSymbol)
     {
         return ParseExpression(MethodApiMember(methodSymbol));
@@ -438,8 +481,6 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     {
         if(cancellationToken.IsCancellationRequested) return;
 
-        var typeSymbols = typeSymbol.ContainingNamespace.GetMembers().OfType<ITypeSymbol>().Where(t => t.TypeKind == TypeKind.Struct).ToList();
-
 
         var methodSymbols = from method in typeSymbol.GetMembers().OfType<IMethodSymbol>()
                           where method.DeclaredAccessibility == Accessibility.Public &&
@@ -489,6 +530,18 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             if (IsHandleType(typeSymbol, returnType))
                 handleTypes.Add(methodSymbol.ReturnType);
         }
+
+        var delegateTypeSymbols = from @delegate in typeSymbol.ContainingNamespace.GetMembers().OfType<INamedTypeSymbol>()
+                                  where @delegate.TypeKind == TypeKind.Delegate &&
+                                        @delegate.DeclaredAccessibility == Accessibility.Public
+                                  select @delegate;
+
+        foreach (var delegateTypeSymbol in delegateTypeSymbols)
+        {
+            this.delegateTypeSymbols.Add(delegateTypeSymbol);
+            delegateMethodSymbols[delegateTypeSymbol.ToString()] = delegateTypeSymbol.DelegateInvokeMethod!;
+        }        
+        
     }
 
 
@@ -496,9 +549,28 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     {
         ArgumentSyntax argument = Argument(parameterSymbol);
 
+        if(IsFuntionPointer(parameterSymbol.Type))
+        {
+            return argument.WithExpression(IdentifierName($"{parameterSymbol.Name}Pfn"));
+        }
+
         if (IsHandleType(parameterSymbol.Type))
         {
             return argument.WithExpression(IdentifierName($"{parameterSymbol.Name}Ref"));
+        }
+
+        return argument;
+    }
+
+    private ArgumentSyntax GetCallbackArgument(IParameterSymbol parameterSymbol, ITypeSymbol handeType)
+    {
+        ArgumentSyntax argument = Argument(parameterSymbol);
+
+        if (IsHandleType(parameterSymbol.Type))
+        {
+            return Equals(parameterSymbol.Type, handeType)
+                ? argument.WithExpression(ParseExpression($"{parameterSymbol.Name} == default ? null : (Handle == {parameterSymbol.Name} ? this : new {GetWrapperName(parameterSymbol.Type)}(Api, {parameterSymbol.Name}))"))
+                : argument.WithExpression(ParseExpression($"{parameterSymbol.Name} == default ? null : (new {GetWrapperName(parameterSymbol.Type)}(Api, {parameterSymbol.Name}))"));
         }
 
         return argument;
@@ -512,10 +584,21 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         if (IsHandleType(parameterSymbol.Type))
         {
             return parameter.WithType(IdentifierName(GetWrapperName(parameterSymbol.Type)));
-        } 
+        }
+
+        if (IsFuntionPointer(parameterSymbol.Type))
+        {
+            return parameter.WithType(IdentifierName(parameterSymbol.Type.Name.Substring("Pfn".Length)));
+        }
 
         return DefaultValueIfApplicable(parameter, parameterSymbol);
     }
+
+    private bool IsFuntionPointer(ITypeSymbol typeSymbol)
+        => typeSymbol is { IsValueType: true, IsReadOnly: true } && typeSymbol.Name.StartsWith("Pfn");
+
+    private IEnumerable<IParameterSymbol> GetFunctionPointerParameters(ITypeSymbol typeSymbol)
+        => delegateMethodSymbols[typeSymbol.ToString().Replace("Pfn", "")].Parameters;
 
     private ParameterSyntax DefaultValueIfApplicable(ParameterSyntax parameter, IParameterSymbol parameterSymbol)
     {
@@ -620,9 +703,17 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     private string GetWrapperName(ITypeSymbol typeSymbol)
         => string.Format(wrapperNameFormatString, GetName(typeSymbol));
 
-    private (string Name, string Source) GetOutput(TypeDeclarationSyntax typeDeclaration)
+    private (string Name, string Source) GetOutput(MemberDeclarationSyntax memberDeclaration)
     {
-        return (typeDeclaration.Identifier.Text, rootNamespace!.WithMembers(new SyntaxList<MemberDeclarationSyntax>(typeDeclaration)).NormalizeWhitespace().ToFullString());
+        string name = memberDeclaration switch
+        {
+            TypeDeclarationSyntax t => t.Identifier.Text,
+            DelegateDeclarationSyntax t => t.Identifier.Text,
+            _ => Guid.NewGuid().ToString()
+        };
+
+
+        return (name, rootNamespace!.WithMembers(new SyntaxList<MemberDeclarationSyntax>(memberDeclaration)).NormalizeWhitespace().ToFullString());
     }
 
     public bool Equals(ObjectModelGenerator other)

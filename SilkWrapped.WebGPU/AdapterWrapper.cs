@@ -6,19 +6,17 @@ public unsafe partial class AdapterWrapper
         int dummy = 0;
         var tcs = new TaskCompletionSource<DeviceWrapper>();
 
-        RequestDevice(descriptor,
-        new PfnRequestDeviceCallback((arg0, arg1, arg2, arg3) =>
+        RequestDevice(descriptor, (arg0, arg1, arg2, arg3) =>
         {
             if (arg0 == RequestDeviceStatus.Success)
             {
-                var device = new DeviceWrapper(Api, arg1);
-                tcs.SetResult(device);
+                tcs.SetResult(arg1);
             }
             else
             {
                 tcs.SetException(new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}"));
             }
-        }),
+        },
         ref dummy);
 
         return tcs.Task;

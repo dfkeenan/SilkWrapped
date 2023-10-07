@@ -130,6 +130,11 @@ internal static class CustomSyntaxFactory
     public static T WithParameterList<T>(this T declaration, IEnumerable<ParameterSyntax> parameters) where T : BaseMethodDeclarationSyntax
         => (T)declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
 
+    public static DelegateDeclarationSyntax WithParameterList(this DelegateDeclarationSyntax declaration, IEnumerable<ParameterSyntax> parameters)
+        => declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
+    public static ParenthesizedLambdaExpressionSyntax WithParameterList(this ParenthesizedLambdaExpressionSyntax declaration, IEnumerable<ParameterSyntax> parameters)
+        => declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
+
     public static InvocationExpressionSyntax WithArgumentList(this InvocationExpressionSyntax declaration, IEnumerable<ArgumentSyntax> arguments)
         => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
 
@@ -231,6 +236,13 @@ internal static class CustomSyntaxFactory
         variables = variables.Select(v => v.WithInitializer(EqualsValueClause(initializer)));
 
         return variableDeclarationSyntax.WithVariables(new SeparatedSyntaxList<VariableDeclaratorSyntax>().AddRange(variables));
+    }
+
+    public static VariableDeclarationSyntax WithVariables(this VariableDeclarationSyntax variableDeclarationSyntax, VariableDeclaratorSyntax variable)
+    {
+        IEnumerable<VariableDeclaratorSyntax> variables = variableDeclarationSyntax.Variables;
+
+        return variableDeclarationSyntax.WithVariables(new SeparatedSyntaxList<VariableDeclaratorSyntax>().Add(variable));
     }
 
     public static string CamelCase(string value)

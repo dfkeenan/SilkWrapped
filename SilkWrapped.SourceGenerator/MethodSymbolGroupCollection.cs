@@ -36,7 +36,7 @@ internal class MethodSymbolGroupCollection
     }
 }
 
-internal static class SymbolExtensions
+internal static class MethodSymbolGroupCollectionExtensions
 {
     public static IEnumerable<IMethodSymbol> OrderByPriority(this IEnumerable<IMethodSymbol> list, Dictionary<ITypeSymbol, int> priority)
         => list.OrderBy(ms => priority[ms.ContainingType]);

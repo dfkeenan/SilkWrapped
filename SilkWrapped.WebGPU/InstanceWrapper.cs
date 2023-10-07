@@ -7,18 +7,17 @@ public unsafe partial class InstanceWrapper
         var tcs = new TaskCompletionSource<AdapterWrapper>();
 
         RequestAdapter(new RequestAdapterOptions() { CompatibleSurface = surface, PowerPreference = powerPreference },
-        new PfnRequestAdapterCallback((arg0, arg1, arg2, arg3) =>
+        (arg0, arg1, arg2, arg3) =>
         {
             if (arg0 == RequestAdapterStatus.Success)
-            {
-                var adapter = new AdapterWrapper(Api, arg1);
-                tcs.SetResult(adapter);
+            { 
+                tcs.SetResult(arg1);
             }
             else
             {
                 tcs.SetException(new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}"));
             }
-        }),
+        },
         ref dummy);
 
         return tcs.Task;
