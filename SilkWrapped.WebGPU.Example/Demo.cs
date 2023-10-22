@@ -21,33 +21,33 @@ internal class Demo : IDisposable
         public Vector2 TexCoord;
     }
 
-    private IWindow window = default!;
-    private IInputContext input = default!;
-    private IKeyboard keyboard;
-    private InstanceWrapper instance;
-    private SurfaceWrapper surface;
+    private IWindow? window;
+    private IInputContext? input;
+    private IKeyboard? keyboard;
+    private InstanceWrapper? instance;
+    private SurfaceWrapper? surface;
     private SurfaceCapabilities surfaceCapabilities;
-    private AdapterWrapper adapter;
-    private DeviceWrapper device;
+    private AdapterWrapper? adapter;
+    private DeviceWrapper? device;
     
-    private QueueWrapper queue;
+    private QueueWrapper? queue;
     private SurfaceConfiguration surfaceConfiguration;
-    private ShaderModuleWrapper shader;
-    private RenderPipelineWrapper renderPipeline;
+    private ShaderModuleWrapper? shader;
+    private RenderPipelineWrapper? renderPipeline;
 
-    private BufferWrapper vertexBuffer;
+    private BufferWrapper? vertexBuffer;
     private ulong vertexBufferSize;
 
-    private TextureWrapper texture;
-    private TextureViewWrapper textureView;
-    private SamplerWrapper sampler;
+    private TextureWrapper? texture;
+    private TextureViewWrapper? textureView;
+    private SamplerWrapper? sampler;
 
-    private BindGroupWrapper textureBindGroup;
-    private BindGroupLayoutWrapper textureSamplerBindGroupLayout;
+    private BindGroupWrapper? textureBindGroup;
+    private BindGroupLayoutWrapper? textureSamplerBindGroupLayout;
 
-    private BufferWrapper projectionMatrixBuffer;
-    private BindGroupLayoutWrapper projectionMatrixBindGroupLayout;
-    private BindGroupWrapper projectionMatrixBindGroup;
+    private BufferWrapper? projectionMatrixBuffer;
+    private BindGroupLayoutWrapper? projectionMatrixBindGroupLayout;
+    private BindGroupWrapper? projectionMatrixBindGroup;
 
 
     public Demo()
@@ -109,11 +109,11 @@ internal class Demo : IDisposable
 
     private async void OnLoad()
     {
-        input = window.CreateInput();
+        input = window!.CreateInput();
         keyboard = input.Keyboards[0];
 
         instance = new InstanceWrapper();
-        surface = window.CreateWebGPUSurface(instance);
+        surface = window!.CreateWebGPUSurface(instance);
 
         adapter = await instance.RequestAdapterAsync(surface);
         device = await adapter.RequestDeviceAsync();
@@ -473,7 +473,7 @@ internal class Demo : IDisposable
                 BindGroupLayouts = bindGroupLayouts
             };
 
-            using var pipelineLayout = device.CreatePipelineLayout(pipelineLayoutDescriptor);
+            using var pipelineLayout = device!.CreatePipelineLayout(pipelineLayoutDescriptor);
 
             var renderPipelineDescriptor = new RenderPipelineDescriptor
             {
@@ -514,19 +514,19 @@ internal class Demo : IDisposable
             Format = surfaceCapabilities.Formats[0],
             PresentMode = PresentMode.Fifo,
             Device = device,
-            Width = (uint)window.FramebufferSize.X,
+            Width = (uint)window!.FramebufferSize.X,
             Height = (uint)window.FramebufferSize.Y
         };
 
-        surface.Configure(surfaceConfiguration);
+        surface!.Configure(surfaceConfiguration);
     }
 
     private unsafe void UpdateProjectionMatrix()
     {
-        using var queue = device.GetQueue();
+        using var queue = device!.GetQueue();
 
         using var commandEncoder = device.CreateCommandEncoder();
-        var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window.Size.X, window.Size.Y, 0, 0, 1);
+        var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window!.Size.X, window.Size.Y, 0, 0, 1);
 
         queue.WriteBuffer(projectionMatrixBuffer, 0, projectionMatrix, (nuint)sizeof(Matrix4x4));
 
@@ -537,15 +537,15 @@ internal class Demo : IDisposable
 
     private void OnUpdate(double obj)
     {
-        if(keyboard.IsKeyPressed(Key.Escape))
+        if(keyboard!.IsKeyPressed(Key.Escape))
         {
-            window.Close();
+            window!.Close();
         }
     }
 
     private unsafe void OnRender(double obj)
     {
-        var (status, surfaceTexture) = surface.GetCurrentTexture();
+        var (status, surfaceTexture) = surface!.GetCurrentTexture();
         switch (status)
         {
             case SurfaceGetCurrentTextureStatus.Timeout:
@@ -579,7 +579,7 @@ internal class Demo : IDisposable
             ColorAttachments = colorAttachments,
         };
 
-        using var commandEncoder = device.CreateCommandEncoder();
+        using var commandEncoder = device!.CreateCommandEncoder();
         using var renderPassEncoder = commandEncoder.BeginRenderPass(renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
         renderPassEncoder.SetBindGroup(0, textureBindGroup, 0, 0);
@@ -588,8 +588,8 @@ internal class Demo : IDisposable
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
-        queue.Submit(1, commandBuffer);
+        queue!.Submit(1, commandBuffer);
         surface.Present();
-        window.SwapBuffers();
+        window!.SwapBuffers();
     }
 }
