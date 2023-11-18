@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
       <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -8,9 +8,9 @@
         <OutputType>Library</OutputType>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Silk.NET.WebGPU" Version="2.18.0" />
-        <PackageReference Include="Silk.NET.WebGPU.Extensions.Dawn" Version="2.18.0" />
-        <PackageReference Include="Silk.NET.WebGPU.Extensions.WGPU" Version="2.18.0" />
+        <PackageReference Include="Silk.NET.WebGPU" Version="2.19.0" />
+        <PackageReference Include="Silk.NET.WebGPU.Extensions.Dawn" Version="2.19.0" />
+        <PackageReference Include="Silk.NET.WebGPU.Extensions.WGPU" Version="2.19.0" />
         <!--<PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.17.1-build3832.0" />-->
     </ItemGroup>
     <ItemGroup>

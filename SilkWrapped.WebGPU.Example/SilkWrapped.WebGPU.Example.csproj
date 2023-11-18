@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
@@ -20,9 +20,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Silk.NET.Input" Version="2.18.0" />
-        <PackageReference Include="Silk.NET.Windowing" Version="2.18.0" />
-        <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.18.0" />
+        <PackageReference Include="Silk.NET.Input" Version="2.19.0" />
+        <PackageReference Include="Silk.NET.Windowing" Version="2.19.0" />
+        <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.19.0" />
         <PackageReference Include="SixLabors.ImageSharp" Version="3.0.2" />
     </ItemGroup>
 
