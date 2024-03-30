@@ -5,6 +5,7 @@ using Silk.NET.Windowing;
 using System.Numerics;
 using SixLabors.ImageSharp;
 using Silk.NET.WebGPU.Extensions.WGPU;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace SilkWrapped.WebGPU.Example;
 internal class Demo : IDisposable
