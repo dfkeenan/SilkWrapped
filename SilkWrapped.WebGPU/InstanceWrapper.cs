@@ -1,26 +1,40 @@
-﻿namespace SilkWrapped.WebGPU;
+﻿using Silk.NET.WebGPU;
+
+namespace SilkWrapped.WebGPU;
 public unsafe partial class InstanceWrapper
 {
-    public Task<AdapterWrapper> RequestAdapterAsync(SurfaceWrapper surface, PowerPreference powerPreference = PowerPreference.HighPerformance)
+    public AdapterWrapper RequestAdapter(SurfaceWrapper surface, PowerPreference powerPreference = PowerPreference.HighPerformance)
     {
         int dummy = 0;
-        var tcs = new TaskCompletionSource<AdapterWrapper>();
+        var resetEvent = new ManualResetEvent(false);
+
+        AdapterWrapper? adapter = null;
+        Exception? exception = null;
 
         RequestAdapterOptions options = new RequestAdapterOptions() { CompatibleSurface = surface, PowerPreference = powerPreference };
         this.RequestAdapter<int>(in options,
         (arg0, arg1, arg2, arg3) =>
         {
             if (arg0 == RequestAdapterStatus.Success)
-            { 
-                tcs.SetResult(arg1);
+            {
+                adapter = arg1;
             }
             else
             {
-                tcs.SetException(new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}"));
+                exception = new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}");
             }
+
+            resetEvent.Set();
         },
         ref dummy);
 
-        return tcs.Task;
+        resetEvent.WaitOne();
+
+        if (exception != null)
+        {
+            throw exception;
+        }
+
+        return adapter;
     }
 }

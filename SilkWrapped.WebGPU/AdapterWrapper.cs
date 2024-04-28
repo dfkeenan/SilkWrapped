@@ -1,24 +1,36 @@
 ﻿namespace SilkWrapped.WebGPU;
 public unsafe partial class AdapterWrapper
 {
-    public Task<DeviceWrapper> RequestDeviceAsync(in DeviceDescriptor descriptor = default)
+    public DeviceWrapper RequestDevice(in DeviceDescriptor descriptor = default)
     {
         int dummy = 0;
-        var tcs = new TaskCompletionSource<DeviceWrapper>();
+        var resetEvent = new ManualResetEvent(false);
+
+        DeviceWrapper? device = null;
+        Exception? exception = null; 
 
         RequestDevice(in descriptor, (arg0, arg1, arg2, arg3) =>
         {
             if (arg0 == RequestDeviceStatus.Success)
             {
-                tcs.SetResult(arg1);
+                device = arg1;
             }
             else
             {
-                tcs.SetException(new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}"));
+                exception = new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}");
             }
+
+            resetEvent.Set();
         },
         ref dummy);
 
-        return tcs.Task;
+        resetEvent.WaitOne();
+
+        if(exception != null)
+        {
+            throw exception;
+        }
+
+        return device;
     }
 }
