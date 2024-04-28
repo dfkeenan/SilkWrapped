@@ -6,7 +6,7 @@ public unsafe partial class AdapterWrapper
         int dummy = 0;
         var tcs = new TaskCompletionSource<DeviceWrapper>();
 
-        RequestDevice(descriptor, (arg0, arg1, arg2, arg3) =>
+        RequestDevice(in descriptor, (arg0, arg1, arg2, arg3) =>
         {
             if (arg0 == RequestDeviceStatus.Success)
             {

@@ -200,7 +200,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                             IdentifierName("Api"))));
 
                 arguments = from parameterSymbol in methodSymbol.Parameters.Skip(1)
-                            let argument = Argument(parameterSymbol)
+                            let argument = GetArgument(parameterSymbol)
                             select argument;
 
                 arguments = arguments.Prepend(Argument(MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
@@ -210,7 +210,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             else
             {
                 arguments = from parameterSymbol in methodSymbol.Parameters
-                            let argument = Argument(parameterSymbol)
+                            let argument = GetArgument(parameterSymbol)
                             select argument;
             }
 
@@ -228,6 +228,11 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                                             .WithBody(Block().AddStatements(contructorMethodStatements));
 
             members.Add(constructorDeclaration);
+
+            if (ShouldAddDefaultParamOverride(methodSymbol, constructorDeclaration, out var overrideMethodDeclaration))
+            {
+                members.Add(overrideMethodDeclaration);
+            }
         }
 
         
@@ -335,7 +340,13 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             }
 
 
-            members.Add(methodDeclaration.WithBody(body));
+            methodDeclaration = methodDeclaration.WithBody(body);
+            members.Add(methodDeclaration);
+
+            if (ShouldAddDefaultParamOverride(methodSymbol, methodDeclaration, out var overrideMethodDeclaration))
+            {
+                members.Add(overrideMethodDeclaration);
+            }
         }
 
 
@@ -559,6 +570,11 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             return argument.WithExpression(IdentifierName($"{parameterSymbol.Name}Ref"));
         }
 
+        if (parameterSymbol.RefKind == RefKind.RefReadOnlyParameter)
+        {
+            return argument.WithRefKindKeyword(Token(SyntaxKind.InKeyword));
+        }
+
         return argument;
     }
 
@@ -591,7 +607,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             return parameter.WithType(IdentifierName(parameterSymbol.Type.Name.Substring("Pfn".Length)));
         }
 
-        return DefaultValueIfApplicable(parameter, parameterSymbol);
+        return parameter;
     }
 
     private bool IsFuntionPointer(ITypeSymbol typeSymbol)
@@ -600,15 +616,41 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     private IEnumerable<IParameterSymbol> GetFunctionPointerParameters(ITypeSymbol typeSymbol)
         => delegateMethodSymbols[typeSymbol.ToString().Replace("Pfn", "")].Parameters;
 
-    private ParameterSyntax DefaultValueIfApplicable(ParameterSyntax parameter, IParameterSymbol parameterSymbol)
+
+    private bool ShouldAddDefaultParamOverride<T>(IMethodSymbol methodSymbol, T declaration, out T? overrideDeclaration)
+        where T : BaseMethodDeclarationSyntax
     {
-        if(parameterSymbol.RefKind is not ( RefKind.None or RefKind.In )) return parameter;
-        if(parameterSymbol.Type.IsValueType is false) return parameter;
+        overrideDeclaration = null;
+        if (!(methodSymbol.Parameters.Length <= 2 && ShouldDefaultValue(methodSymbol.Parameters.Last()))) return false;
+
+        var defaultParameterSymbol = methodSymbol.Parameters.Last();
+        var lastParam = declaration.ParameterList.Parameters.Last();
+        
+
+        var defaultValue = LocalDeclarationStatement(
+                        VariableDeclaration(TypeSyntax(defaultParameterSymbol.Type))
+                            .WithVariables(VariableDeclarator(lastParam.Identifier)
+                                .WithInitializer(EqualsValueClause
+                                    (ObjectCreationExpression(TypeSyntax(defaultParameterSymbol.Type))
+                                        .WithArgumentList()))));
+
+        var body = Block().AddStatements(declaration.Body!.Statements.Prepend(defaultValue));
+
+
+        overrideDeclaration = (T)declaration.WithBody(body)
+                                         .WithParameterList(Enumerable.Empty<ParameterSyntax>());
+
+        return true;
+    }
+
+
+    private bool ShouldDefaultValue(IParameterSymbol parameterSymbol)
+    {
+        if(parameterSymbol.RefKind is not ( RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter )) return false;
+        if(parameterSymbol.Type.IsValueType is false) return false;
 
         //Not sure about this one
-        if(parameterSymbol.Type.Name.EndsWith("Descriptor") is false) return parameter;
-
-        var shouldDefault = true;
+        if(parameterSymbol.Type.Name.EndsWith("Descriptor") is false) return false;
 
         foreach (var member in parameterSymbol.Type.GetMembers())
         {
@@ -618,16 +660,10 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             if(fieldSymbol.Name == "NextInChain" && fieldSymbol.Type.ToString().EndsWith("ChainedStruct*")) continue;
             if(fieldSymbol.Name == "Label" && fieldSymbol.Type.ToString().EndsWith("byte*")) continue;
 
-            shouldDefault = false;
-            break;
+            return false;
         }
 
-        if (shouldDefault) return parameter.WithDefault(EqualsValueClause(
-                                LiteralExpression(
-                                    SyntaxKind.DefaultLiteralExpression,
-                                    Token(SyntaxKind.DefaultKeyword))));
-
-        return parameter;
+        return true;
     }
 
     private bool IsAPIOwner(ITypeSymbol typeSymbol)

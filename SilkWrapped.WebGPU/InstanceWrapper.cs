@@ -6,7 +6,8 @@ public unsafe partial class InstanceWrapper
         int dummy = 0;
         var tcs = new TaskCompletionSource<AdapterWrapper>();
 
-        RequestAdapter(new RequestAdapterOptions() { CompatibleSurface = surface, PowerPreference = powerPreference },
+        RequestAdapterOptions options = new RequestAdapterOptions() { CompatibleSurface = surface, PowerPreference = powerPreference };
+        this.RequestAdapter<int>(in options,
         (arg0, arg1, arg2, arg3) =>
         {
             if (arg0 == RequestAdapterStatus.Success)

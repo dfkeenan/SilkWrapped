@@ -7,11 +7,11 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
-      <PackageReference Include="Silk.NET.Input" Version="2.20.0" />
-      <PackageReference Include="Silk.NET.Windowing" Version="2.20.0" />
-      <PackageReference Include="Silk.NET.WebGPU" Version="2.20.0" />
-      <PackageReference Include="Silk.NET.WebGPU.Extensions.Dawn" Version="2.20.0" />
-      <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.Input" Version="2.21.0" />
+      <PackageReference Include="Silk.NET.Windowing" Version="2.21.0" />
+      <PackageReference Include="Silk.NET.WebGPU" Version="2.21.0" />
+      <PackageReference Include="Silk.NET.WebGPU.Extensions.Dawn" Version="2.21.0" />
+      <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.21.0" />
       <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup>

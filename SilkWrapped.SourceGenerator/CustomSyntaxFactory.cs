@@ -158,6 +158,7 @@ internal static class CustomSyntaxFactory
         {
             RefKind.Ref => result.WithModifiers(TokenList(Token(SyntaxKind.RefKeyword))),
             RefKind.In => result.WithModifiers(TokenList(Token(SyntaxKind.InKeyword))),
+            RefKind.RefReadOnlyParameter => result.WithModifiers(TokenList(Token(SyntaxKind.RefKeyword), Token(SyntaxKind.ReadOnlyKeyword))),
             RefKind.Out => result.WithModifiers(TokenList(Token(SyntaxKind.OutKeyword))),
             _ => result
         };
