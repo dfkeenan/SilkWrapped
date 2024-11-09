@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.11.0" />
     <PackageReference Include="System.CommandLine.DragonFruit" Version="0.4.0-alpha.22272.1" />
+    <PackageReference Include="ICSharpCode.Decompiler" Version="8.2.0.7535" />
   </ItemGroup>
 
   <ItemGroup>

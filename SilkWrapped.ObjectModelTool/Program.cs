@@ -1,9 +1,17 @@
-﻿using Microsoft.CodeAnalysis.MSBuild;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.MSBuild;
+using SilkWrapped.ObjectModelTool.SyntaxTransformers;
 
 namespace SilkWrapped.ObjectModelTool;
 
 internal class Program
 {
+    // https://learn.microsoft.com/en-us/dotnet/api/system.threading.cancellationtokensource
+    private static readonly CancellationTokenSource cts = new CancellationTokenSource();
+
+
+
     /// <summary>
     /// Generates safe object model types for Silk.NET APIs
     /// </summary>
@@ -15,6 +23,7 @@ internal class Program
     /// <param name="constructionMethodNamePattern"></param>
     /// <param name="disposalMethodNamePattern"></param>
     /// <param name="handleTypeNameExclusionPattern"></param>
+    /// <param name="whatIf"></param>
     static async Task Main(
         FileInfo projectPath,
         string containerType,
@@ -23,9 +32,24 @@ internal class Program
         string wrapperNameFormatString = GeneratorOptions.DefaultWrapperNameFormatString,
         string constructionMethodNamePattern = GeneratorOptions.DefaultConstructionMethodNamePattern,
         string disposalMethodNamePattern = GeneratorOptions.DefaultDisposalMethodNamePattern,
-        string handleTypeNameExclusionPattern = GeneratorOptions.DefaultHandleTypeNameExclusionPattern
+        string handleTypeNameExclusionPattern = GeneratorOptions.DefaultHandleTypeNameExclusionPattern,
+        bool whatIf = false
         )
     {
+        //whatIf = true;
+
+
+        Console.WriteLine("Application has started. Ctrl-C to end");
+
+        Console.CancelKeyPress += (sender, eventArgs) =>
+        {
+            Console.WriteLine("Cancel event triggered");
+            cts.Cancel();
+            eventArgs.Cancel = true;
+        };
+
+        var token = cts.Token;
+
         //TODO: Validations
         if (projectPath is null or { Exists: false})
         {
@@ -40,17 +64,33 @@ internal class Program
             var files = outputDrectory.GetFiles("*.cs", new EnumerationOptions { RecurseSubdirectories = true });
             foreach (var file in files)
             {
-                file.Delete();
+                if (!whatIf)
+                {
+                    file.Delete(); 
+                }
+                else
+                {
+                    Console.WriteLine($"Will delete '{file.FullName}'");
+                }
             }
         }
         else
         {
-            outputDrectory.Create();
+            if (!whatIf)
+            {
+                outputDrectory.Create();
+            }
+            else
+            {
+                Console.WriteLine($"Will create directory '{outputDrectory.FullName}'");
+            }
         }
 
-            using var workspace = MSBuildWorkspace.Create();
+        Console.WriteLine(new string('-',80));
+
+        using var workspace = MSBuildWorkspace.Create();
         var project = await workspace.OpenProjectAsync(projectPath.FullName);
-        var compilation = await project.GetCompilationAsync();
+        var compilation = await project.GetCompilationAsync(token);
 
         if(compilation is null)
         {
@@ -83,13 +123,58 @@ internal class Program
         };
 
         var objectGenerator = new ObjectModelGenerator(containerTypeSymbol, apiOwnerTypeSymbol, options);
+        objectGenerator.CollectTypeInformation(token);
+        var decompiler = new Decompiler(compilation, apiOwnerTypeSymbol, options);
+
+        var transformations = new List<CSharpSyntaxRewriter>()
+        {
+            new ReplaceNamespace(apiOwnerTypeSymbol.ContainingNamespace.ToDisplayString(), containerTypeSymbol.ContainingNamespace.ToDisplayString()),
+        };
+
+        foreach (var item in decompiler.GetTypes(ts => !objectGenerator.IsHandleType(ts, true)))
+        {
+             SyntaxNode syntax = item.DecompiledSyntax;
+
+            foreach (var transformer in transformations)
+            {
+                syntax = transformer.Visit(syntax);
+            }
+
+            string subDirectory = item.Symbol.TypeKind switch
+            {
+                TypeKind.Struct => nameof(TypeKind.Struct),
+                TypeKind tk => tk.ToString(),
+            };
+
+            var fileName = Path.Combine(outputDrectory.FullName, subDirectory, $"{item.Symbol.Name}.cs");
+            if (!whatIf)
+            {
+                Directory.CreateDirectory(Path.Combine(outputDrectory.FullName, subDirectory));
+
+                File.WriteAllText(fileName, syntax.ToFullString());
+            }
+            else
+            {
+                Console.WriteLine($"Will create '{fileName}'");
+            }
+        }
+
+        Console.WriteLine(new string('-', 80));
 
         
 
-        foreach((string Name, string Source) in objectGenerator.GetSources(CancellationToken.None))
+
+        foreach((string Name, string Source) in objectGenerator.GetSources(token))
         {
             var fileName = Path.Combine(outputDrectory.FullName, $"{Name}.cs");
-            File.WriteAllText(fileName, Source);
+            if (!whatIf)
+            {
+                File.WriteAllText(fileName, Source); 
+            }
+            else
+            {
+                Console.WriteLine($"Will create '{fileName}'");
+            }
         }
     }
 }

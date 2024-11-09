@@ -87,6 +87,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     private readonly MethodSymbolGroupCollection methods = new();
     private readonly MethodSymbolGroupCollection disposalMethods = new();
     private readonly HashSet<ITypeSymbol> handleTypes = new(SymbolEqualityComparer.Default);
+    private readonly HashSet<ITypeSymbol> handleStructTypes = new(SymbolEqualityComparer.Default);
+
     Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
     private readonly List<INamedTypeSymbol> delegateTypeSymbols = new();
@@ -477,13 +479,24 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         }
     }
 
-    private void CollectTypeInformation(CancellationToken cancellationToken)
+    public void CollectTypeInformation(CancellationToken cancellationToken)
     {
-        CollectTypeInformation(apiType!, cancellationToken);
+        if (apiType is null) return;
+        if (apiProperty is null) return;
+        if (rootNamespace is null) return;
+        if (cancellationToken.IsCancellationRequested) return;
+        if(handleTypes.Any()) return;
+
+        CollectTypeInformation(apiType, cancellationToken);
 
         foreach (var extensionType in extensionTypes)
         {
             CollectTypeInformation(extensionType, cancellationToken);
+        }
+
+        foreach (var handleType in handleTypes)
+        {
+            handleStructTypes.Add(TypeOrPointedAtType(handleType));
         }
     }
 
@@ -691,12 +704,22 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return handleTypeNameExclusionPattern.IsMatch(GetName(typeSymbol));
     }
 
-    private bool IsHandleType(ITypeSymbol typeSymbol)
-        => handleTypes.Contains(typeSymbol);
+    public bool IsHandleType(ITypeSymbol typeSymbol, bool ignorePointer = false)
+        => (ignorePointer ? handleStructTypes : handleTypes).Contains(typeSymbol);
 
     private bool IsHandleType(ITypeSymbol typeSymbol, ITypeSymbol handleTypeCandidate)
     {
         return IsStructure(handleTypeCandidate) && Equals(GetNamespace(handleTypeCandidate), GetNamespace(typeSymbol)) && !IsExcludedHandleType(handleTypeCandidate);
+    }
+
+    private static ITypeSymbol TypeOrPointedAtType(ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
+        {
+            return pointerTypeSymbol.PointedAtType;
+        }
+
+        return typeSymbol;
     }
 
     private INamespaceSymbol GetNamespace(ITypeSymbol typeSymbol)
