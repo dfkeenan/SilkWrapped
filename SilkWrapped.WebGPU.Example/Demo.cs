@@ -1,15 +1,11 @@
-﻿using Silk.NET.Input;
+﻿using System.Numerics;
+using System.Runtime.InteropServices;
+using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.WebGPU;
 using Silk.NET.Windowing;
-using System.Numerics;
 using SixLabors.ImageSharp;
-using Silk.NET.WebGPU.Extensions.WGPU;
 using SixLabors.ImageSharp.PixelFormats;
-using Silk.NET.Core.Native;
-using System.Runtime.InteropServices;
-using Silk.NET.Core.Attributes;
-using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU.Example;
 internal class Demo : IDisposable
