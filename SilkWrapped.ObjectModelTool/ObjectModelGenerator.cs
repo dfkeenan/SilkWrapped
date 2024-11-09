@@ -1,25 +1,24 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
+using SilkWrapped.SourceGenerator;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static SilkWrapped.SourceGenerator.CustomSyntaxFactory;
 
-namespace SilkWrapped.SourceGenerator;
+namespace SilkWrapped.ObjectModelTool;
 
 internal record class GeneratorOptions
 {
-    public string WrapperNameFormatString { get; set; } = "{0}Wrapper";
-    public string ConstructionMethodNamePattern { get; set; } = ".*(Create|Finish|Acquire).*";
-    public string DisposalMethodNamePattern { get; set; } = ".*(Release|Drop|Destroy).*";
-    public string HandleTypeNameExclusionPattern { get; set; } = "(Pfn).*|.*Descriptor";
+    public const string DefaultWrapperNameFormatString = "{0}Wrapper";
+    public const string DefaultConstructionMethodNamePattern = ".*(Create|Finish|Acquire).*";
+    public const string DefaultDisposalMethodNamePattern = ".*(Release|Drop|Destroy).*";
+    public const string DefaultHandleTypeNameExclusionPattern = "(Pfn).*|.*Descriptor";
+
+    public string WrapperNameFormatString        { get; set; } = DefaultWrapperNameFormatString;
+    public string ConstructionMethodNamePattern  { get; set; } = DefaultConstructionMethodNamePattern;
+    public string DisposalMethodNamePattern      { get; set; } = DefaultDisposalMethodNamePattern;
+    public string HandleTypeNameExclusionPattern { get; set; } = DefaultHandleTypeNameExclusionPattern;
 }
 
 
@@ -32,7 +31,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         this.containerType = containerType;
         this.apiOwnerType = apiOwnerType;
 
-        extensionTypes = new List<ITypeSymbol>(); 
+        extensionTypes = new List<ITypeSymbol>();
         extensionProperties = new List<IPropertySymbol>();
 
         foreach (var member in containerType.GetMembers())
@@ -46,7 +45,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                 continue;
             }
 
-            if(property.Type.GetAttributes().Any(a => a.AttributeClass?.Is("Silk.NET.Core.Attributes.ExtensionAttribute") is true))
+            if (property.Type.GetAttributes().Any(a => a.AttributeClass?.Is("Silk.NET.Core.Attributes.ExtensionAttribute") is true))
             {
                 extensionTypes.Add(property.Type.WithNullableAnnotation(NullableAnnotation.None));
                 extensionProperties.Add(property);
@@ -87,7 +86,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     private readonly MethodSymbolGroupCollection constructionMethods = new();
     private readonly MethodSymbolGroupCollection methods = new();
     private readonly MethodSymbolGroupCollection disposalMethods = new();
-    private readonly HashSet<ITypeSymbol> handleTypes = new (SymbolEqualityComparer.Default);
+    private readonly HashSet<ITypeSymbol> handleTypes = new(SymbolEqualityComparer.Default);
     Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
     private readonly List<INamedTypeSymbol> delegateTypeSymbols = new();
@@ -177,7 +176,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
         var contructorMethodStatements = new SyntaxList<StatementSyntax>();
 
-        if(isApiOwner)
+        if (isApiOwner)
         {
             contructorMethodStatements = contructorMethodStatements
                 .Add(AssignmentStatement("Api", ParseExpression($"new {containerType.Name}()")));
@@ -194,8 +193,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             if (IsHandleType(methodSymbol.Parameters[0].Type))
             {
                 contructorMethodStatements = contructorMethodStatements
-                    .Add(AssignmentStatement("Api", 
-                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, 
+                    .Add(AssignmentStatement("Api",
+                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                             IdentifierName(methodSymbol.Parameters[0].Name),
                             IdentifierName("Api"))));
 
@@ -235,7 +234,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             }
         }
 
-        
+
 
         foreach (var methodSymbol in SafetyFilter(methods[handleType]))
         {
@@ -249,7 +248,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                                         .WithParameterList(parameters)
                                         .WithModifiers(SyntaxKind.PublicKeyword);
 
-            if(methodSymbol.IsGenericMethod)
+            if (methodSymbol.IsGenericMethod)
             {
                 var typeParameters = from typeParameter in methodSymbol.TypeParameters
                                      select TypeParameter(typeParameter);
@@ -258,7 +257,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                                   let clause = TypeParameterConstraintClause(typeParameter)
                                   where clause.Constraints.Any()
                                   select clause;
-                
+
 
                 methodDeclaration = methodDeclaration
                     .WithTypeParameterList(TypeParameterList(new SeparatedSyntaxList<TypeParameterSyntax>().AddRange(typeParameters)))
@@ -273,7 +272,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                 {
                     var functionPointerParameters = GetFunctionPointerParameters(parameterSymbol.Type);
                     var callbackParameters = from parameter in functionPointerParameters
-                                             select (SyntaxFactory.Parameter(Identifier(parameter.Name)));
+                                             select (Parameter(Identifier(parameter.Name)));
 
                     var callbackArguments = from parameter in functionPointerParameters
                                             select GetCallbackArgument(parameter, handleType);
@@ -306,7 +305,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
             //if (methodSymbol.IsGenericMethod)
             //{
-                
+
             //}
 
             if (methodSymbol.ReturnsVoid)
@@ -317,7 +316,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             {
                 ReturnStatementSyntax returnStatement;
 
-                if(IsHandleType(methodSymbol.ReturnType))
+                if (IsHandleType(methodSymbol.ReturnType))
                 {
                     string resultWrapperName = GetWrapperName(methodSymbol.ReturnType);
                     var resultWrapperDeclaration = LocalDeclarationStatement(resultWrapperVariable.WithInitializer(ObjectCreationExpression(IdentifierName(resultWrapperName))
@@ -368,7 +367,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
         var disposalMethods = this.disposalMethods[handleType];
 
-        if(disposalMethods.Any())
+        if (disposalMethods.Any())
         {
             var disposeMethodStatements = new SyntaxList<StatementSyntax>();
             disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("if (Handle == default) return;"));
@@ -377,12 +376,12 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             int ifCount = 0;
 
             foreach (var disposalMethod in disposalMethods.OrderByPriority(disposeMethodPriority))
-            { 
+            {
                 string statement;
                 string apiMember = MethodApiMember(disposalMethod);
                 bool isIfStatement = false;
 
-                if(Equals(apiType!, disposalMethod.ContainingType))
+                if (Equals(apiType!, disposalMethod.ContainingType))
                 {
                     statement = $"{apiMember}.{disposalMethod.Name}(Handle);";
                 }
@@ -392,14 +391,14 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                     isIfStatement = true;
                 }
 
-                if(ifCount > 0)
+                if (ifCount > 0)
                 {
                     statement = "else " + statement;
                 }
 
                 disposeMethodStatements = disposeMethodStatements.Add(ParseStatement(statement));
 
-                if(isIfStatement)
+                if (isIfStatement)
                 {
                     ifCount++;
                 }
@@ -455,7 +454,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         if (methodSymbol.ReturnsVoid)
             return PredefinedType(Token(SyntaxKind.VoidKeyword));
 
-        if(IsHandleType(methodSymbol.ReturnType))
+        if (IsHandleType(methodSymbol.ReturnType))
             return ParseTypeName(GetWrapperName(methodSymbol.ReturnType));
 
         return TypeSyntax(methodSymbol.ReturnType);
@@ -490,15 +489,15 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
     private void CollectTypeInformation(ITypeSymbol typeSymbol, CancellationToken cancellationToken)
     {
-        if(cancellationToken.IsCancellationRequested) return;
+        if (cancellationToken.IsCancellationRequested) return;
 
 
         var methodSymbols = from method in typeSymbol.GetMembers().OfType<IMethodSymbol>()
-                          where method.DeclaredAccessibility == Accessibility.Public &&
-                                method.MethodKind == MethodKind.Ordinary &&
-                                method.IsStatic == false &&
-                                method.Parameters.Length > 0 &&
-                                Equals(typeSymbol, method.ReturnType) == false
+                            where method.DeclaredAccessibility == Accessibility.Public &&
+                                  method.MethodKind == MethodKind.Ordinary &&
+                                  method.IsStatic == false &&
+                                  method.Parameters.Length > 0 &&
+                                  Equals(typeSymbol, method.ReturnType) == false
                             select method;
 
         foreach (var methodSymbol in methodSymbols)
@@ -508,11 +507,11 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
             var firstParamType = methodSymbol.Parameters[0].Type;
 
-            if(IsConstructionMethod(methodSymbol))
+            if (IsConstructionMethod(methodSymbol))
             {
                 constructionMethods.Add(methodSymbol.ReturnType, methodSymbol);
             }
-            
+
             if (IsDisposalMethod(methodSymbol))
             {
                 disposalMethods.Add(firstParamType, methodSymbol);
@@ -551,8 +550,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         {
             this.delegateTypeSymbols.Add(delegateTypeSymbol);
             delegateMethodSymbols[delegateTypeSymbol.ToString()] = delegateTypeSymbol.DelegateInvokeMethod!;
-        }        
-        
+        }
+
     }
 
 
@@ -560,7 +559,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     {
         ArgumentSyntax argument = Argument(parameterSymbol);
 
-        if(IsFuntionPointer(parameterSymbol.Type))
+        if (IsFuntionPointer(parameterSymbol.Type))
         {
             return argument.WithExpression(IdentifierName($"{parameterSymbol.Name}Pfn"));
         }
@@ -625,7 +624,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
         var defaultParameterSymbol = methodSymbol.Parameters.Last();
         var lastParam = declaration.ParameterList.Parameters.Last();
-        
+
 
         var defaultValue = LocalDeclarationStatement(
                         VariableDeclaration(TypeSyntax(defaultParameterSymbol.Type))
@@ -646,19 +645,19 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
     private bool ShouldDefaultValue(IParameterSymbol parameterSymbol)
     {
-        if(parameterSymbol.RefKind is not ( RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter )) return false;
-        if(parameterSymbol.Type.IsValueType is false) return false;
+        if (parameterSymbol.RefKind is not (RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter)) return false;
+        if (parameterSymbol.Type.IsValueType is false) return false;
 
         //Not sure about this one
-        if(parameterSymbol.Type.Name.EndsWith("Descriptor") is false) return false;
+        if (parameterSymbol.Type.Name.EndsWith("Descriptor") is false) return false;
 
         foreach (var member in parameterSymbol.Type.GetMembers())
         {
             if (member is not IFieldSymbol fieldSymbol) continue;
-            if(fieldSymbol.IsStatic) continue;
+            if (fieldSymbol.IsStatic) continue;
 
-            if(fieldSymbol.Name == "NextInChain" && fieldSymbol.Type.ToString().EndsWith("ChainedStruct*")) continue;
-            if(fieldSymbol.Name == "Label" && fieldSymbol.Type.ToString().EndsWith("byte*")) continue;
+            if (fieldSymbol.Name == "NextInChain" && fieldSymbol.Type.ToString().EndsWith("ChainedStruct*")) continue;
+            if (fieldSymbol.Name == "Label" && fieldSymbol.Type.ToString().EndsWith("byte*")) continue;
 
             return false;
         }
@@ -668,7 +667,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
     private bool IsAPIOwner(ITypeSymbol typeSymbol)
     {
-        if(apiOwnerType == null) return false;
+        if (apiOwnerType == null) return false;
         if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
         {
             typeSymbol = pointerTypeSymbol.PointedAtType;
@@ -754,15 +753,15 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
     public bool Equals(ObjectModelGenerator other)
     {
-        if(ReferenceEquals(other, null)) return false;
+        if (ReferenceEquals(other, null)) return false;
 
-        if(!SymbolEqualityComparer.Default.Equals(apiOwnerType, other.apiOwnerType)) return false;
-        if(!SymbolEqualityComparer.Default.Equals(containerType, other.containerType)) return false;
-        if(!SymbolEqualityComparer.Default.Equals(apiType, other.apiType)) return false;
-        if(!wrapperNameFormatString.Equals(other.wrapperNameFormatString)) return false;
-        if(!constructionMethodNamePattern.Equals(other.constructionMethodNamePattern)) return false;
-        if(!disposalMethodNamePattern.Equals(other.disposalMethodNamePattern)) return false;
-        if(handleTypeNameExclusionPattern.Equals(other.handleTypeNameExclusionPattern)) return false;
+        if (!SymbolEqualityComparer.Default.Equals(apiOwnerType, other.apiOwnerType)) return false;
+        if (!SymbolEqualityComparer.Default.Equals(containerType, other.containerType)) return false;
+        if (!SymbolEqualityComparer.Default.Equals(apiType, other.apiType)) return false;
+        if (!wrapperNameFormatString.Equals(other.wrapperNameFormatString)) return false;
+        if (!constructionMethodNamePattern.Equals(other.constructionMethodNamePattern)) return false;
+        if (!disposalMethodNamePattern.Equals(other.disposalMethodNamePattern)) return false;
+        if (handleTypeNameExclusionPattern.Equals(other.handleTypeNameExclusionPattern)) return false;
 
 
         return true;
@@ -773,7 +772,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return obj is ObjectModelGenerator g && Equals(g);
     }
 
-    public override int GetHashCode() 
+    public override int GetHashCode()
     {
         var hc = new HashCode();
         hc.Add(apiOwnerType, SymbolEqualityComparer.Default);

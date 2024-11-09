@@ -47,26 +47,26 @@ foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == Diagn
 }
 
 
-var generator = new ObjectModelSourceGenerator();
 
-GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
 
-//driver = driver.RunGenerators(compilation!);
-driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);
+//GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
 
-if (Directory.Exists("sourceout"))
-{
-    Directory.GetFiles("sourceout").ToList().ForEach(f => File.Delete(f));
-}
-else
-{
-    Directory.CreateDirectory("sourceout");
-}
+////driver = driver.RunGenerators(compilation!);
+//driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);
 
-foreach (var item in outputCompilation.SyntaxTrees.Where( t => !string.IsNullOrEmpty(t.FilePath)))
-{
-    File.WriteAllText($@"sourceout\{Path.GetFileName(item.FilePath)}", item.GetText().ToString());
-}
+//if (Directory.Exists("sourceout"))
+//{
+//    Directory.GetFiles("sourceout").ToList().ForEach(f => File.Delete(f));
+//}
+//else
+//{
+//    Directory.CreateDirectory("sourceout");
+//}
+
+//foreach (var item in outputCompilation.SyntaxTrees.Where( t => !string.IsNullOrEmpty(t.FilePath)))
+//{
+//    File.WriteAllText($@"sourceout\{Path.GetFileName(item.FilePath)}", item.GetText().ToString());
+//}
 
 
 Console.WriteLine();

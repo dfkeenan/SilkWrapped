@@ -4,7 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace SilkWrapped.SourceGenerator;
-internal class MethodSymbolGroupCollection
+public class MethodSymbolGroupCollection
 {
     private Dictionary<ITypeSymbol, List<IMethodSymbol>> members = new(SymbolEqualityComparer.Default);
 
@@ -36,7 +36,7 @@ internal class MethodSymbolGroupCollection
     }
 }
 
-internal static class MethodSymbolGroupCollectionExtensions
+public static class MethodSymbolGroupCollectionExtensions
 {
     public static IEnumerable<IMethodSymbol> OrderByPriority(this IEnumerable<IMethodSymbol> list, Dictionary<ITypeSymbol, int> priority)
         => list.OrderBy(ms => priority[ms.ContainingType]);

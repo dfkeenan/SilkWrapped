@@ -17,8 +17,12 @@
     </ItemGroup>
     <ItemGroup>
         <!-- Package the generator in the analyzer directory of the nuget package -->
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="$(OutputPath)\SilkWrapped.SourceGenerator.Common.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 
         <!-- Package the props file -->
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\SilkWrapped.SourceGenerator.Common\SilkWrapped.SourceGenerator.Common.csproj" OutputItemType="Analyzer" />
     </ItemGroup>
 </Project>

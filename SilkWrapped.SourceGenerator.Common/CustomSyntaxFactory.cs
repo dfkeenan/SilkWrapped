@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace SilkWrapped.SourceGenerator;
-internal static class CustomSyntaxFactory
+public static class CustomSyntaxFactory
 {
     public static ClassDeclarationSyntax ClassDeclaration(string identifier, params SyntaxKind[] modifiers)
         => SyntaxFactory.ClassDeclaration(identifier)

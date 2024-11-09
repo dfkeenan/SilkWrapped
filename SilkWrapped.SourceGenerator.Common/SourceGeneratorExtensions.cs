@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace SilkWrapped.SourceGenerator;
-internal static class SourceGeneratorExtensions
+public static class SourceGeneratorExtensions
 {
 
     public static IncrementalValueProvider<T> GetMSBuildProperties<T>(

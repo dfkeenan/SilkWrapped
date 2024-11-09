@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SilkWrapped.ObjectModelTool": {
+      "commandName": "Project",
+      "commandLineArgs": "--project-path \"$(SolutionDir)\\SilkWrapped.WebGPU\\SilkWrapped.WebGPU.csproj\"\r\n--container-type SilkWrapped.WebGPU.ApiContainer\r\n--api-owner-type Silk.NET.WebGPU.Instance\r\n--disposal-method-name-pattern \".*(Release).*\"\r\n--handle-type-name-exclusion-pattern \"(Pfn).*|.*Descriptor|InstanceFeatures|Future|SurfaceCapabilities\""
+    }
+  }
+}

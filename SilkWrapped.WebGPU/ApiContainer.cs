@@ -1,9 +1,7 @@
 ﻿//using Silk.NET.WebGPU.Extensions.WGPU;
-using SilkWrapped.SourceGenerator;
-
 namespace SilkWrapped.WebGPU;
 
-[ApiContainer(typeof(Silk.NET.WebGPU.Instance), HandleTypeNameExclusionPattern = "(Pfn).*|.*Descriptor|InstanceFeatures|Future|SurfaceCapabilities", DisposalMethodNamePattern = ".*(Release).*")]
+
 public unsafe partial class ApiContainer
 {
     public ApiContainer()
