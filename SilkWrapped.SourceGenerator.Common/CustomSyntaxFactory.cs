@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection.Metadata;
-using System.Runtime.InteropServices;
-using System.Text;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -17,7 +12,7 @@ public static class CustomSyntaxFactory
 
     public static ClassDeclarationSyntax AddConstructor(this ClassDeclarationSyntax classDeclaration, params PropertyDeclarationSyntax[] properties)
     {
-        var parameters = ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(properties.Select(p => SyntaxFactory.Parameter(CamelCase(p.Identifier)).WithType(p.Type))));
+        var parameters = ParameterList([.. properties.Select(p => SyntaxFactory.Parameter(CamelCase(p.Identifier)).WithType(p.Type))]);
         var assignments = properties.Select(p => ExpressionStatement(
                 AssignmentExpression(
                     SyntaxKind.SimpleAssignmentExpression,
@@ -32,7 +27,7 @@ public static class CustomSyntaxFactory
         return classDeclaration.AddMembers(constructor);
     }
 
-    public static ClassDeclarationSyntax AddDefaultConstructor(this ClassDeclarationSyntax classDeclaration, Func<BlockSyntax,BlockSyntax> blockBuilder)
+    public static ClassDeclarationSyntax AddDefaultConstructor(this ClassDeclarationSyntax classDeclaration, Func<BlockSyntax, BlockSyntax> blockBuilder)
     {
         var constructor = ConstructorDeclaration(classDeclaration.Identifier)
                             .WithModifiers(SyntaxKind.PublicKeyword)
@@ -60,7 +55,7 @@ public static class CustomSyntaxFactory
 
 
     public static PropertyDeclarationSyntax PropertyDeclaration(ITypeSymbol typeSymbol, string identifier, params SyntaxKind[] modifiers)
-        => SyntaxFactory.PropertyDeclaration(TypeSyntax(typeSymbol),identifier)
+        => SyntaxFactory.PropertyDeclaration(TypeSyntax(typeSymbol), identifier)
                 .WithModifiers(modifiers)
                 .AddAccessorListAccessors(AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(Token(SyntaxKind.SemicolonToken)));
 
@@ -87,7 +82,7 @@ public static class CustomSyntaxFactory
                             IdentifierName("IDisposable")));
 
     public static ExpressionStatementSyntax InvokeDispose(ExpressionSyntax expression, bool conditional = false)
-        =>  conditional ?
+        => conditional ?
             ExpressionStatement(
                     ConditionalAccessExpression(
                         expression,
@@ -108,16 +103,29 @@ public static class CustomSyntaxFactory
         => (T)memberDeclaration.WithModifiers(new SyntaxTokenList(modifiers.Select(m => Token(m))));
 
     public static T AddMembers<T>(this T typeDeclaration, IEnumerable<MemberDeclarationSyntax> items) where T : TypeDeclarationSyntax
-        => (T)typeDeclaration.WithMembers( typeDeclaration.Members.AddRange(items));
+        => (T)typeDeclaration.WithMembers(typeDeclaration.Members.AddRange(items));
 
-    public static TypeSyntax TypeSyntax(ITypeSymbol typeSymbol)
-        => ParseTypeName(typeSymbol.ToDisplayString());
+    public static TypeSyntax TypeSyntax(ITypeSymbol typeSymbol, bool removeQualification = false)
+    {
+        string typeText = typeSymbol.ToDisplayString();
+
+        if (removeQualification)
+        {
+            var index = typeText.LastIndexOf('.');
+            if (index >= 0)
+            {
+                typeText = typeText.Substring(index + 1);
+            }
+        }
+
+        return ParseTypeName(typeText);
+    }
 
     public static ArgumentSyntax Argument(IParameterSymbol parameterSymbol, bool ignoreRefKind = false)
     {
         ArgumentSyntax result = SyntaxFactory.Argument(IdentifierName(parameterSymbol.Name));
 
-        if(ignoreRefKind) return result;
+        if (ignoreRefKind) return result;
 
         return parameterSymbol.RefKind switch
         {
@@ -128,21 +136,21 @@ public static class CustomSyntaxFactory
     }
 
     public static T WithParameterList<T>(this T declaration, IEnumerable<ParameterSyntax> parameters) where T : BaseMethodDeclarationSyntax
-        => (T)declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
+        => (T)declaration.WithParameterList(ParameterList([.. parameters]));
 
     public static DelegateDeclarationSyntax WithParameterList(this DelegateDeclarationSyntax declaration, IEnumerable<ParameterSyntax> parameters)
-        => declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
+        => declaration.WithParameterList(ParameterList([.. parameters]));
     public static ParenthesizedLambdaExpressionSyntax WithParameterList(this ParenthesizedLambdaExpressionSyntax declaration, IEnumerable<ParameterSyntax> parameters)
-        => declaration.WithParameterList(ParameterList(new SeparatedSyntaxList<ParameterSyntax>().AddRange(parameters)));
+        => declaration.WithParameterList(ParameterList([.. parameters]));
 
     public static InvocationExpressionSyntax WithArgumentList(this InvocationExpressionSyntax declaration, IEnumerable<ArgumentSyntax> arguments)
-        => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
+        => declaration.WithArgumentList(ArgumentList([.. arguments]));
 
     public static ObjectCreationExpressionSyntax WithArgumentList(this ObjectCreationExpressionSyntax declaration, IEnumerable<ArgumentSyntax> arguments)
-        => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
+        => declaration.WithArgumentList(ArgumentList([.. arguments]));
 
     public static ObjectCreationExpressionSyntax WithArgumentList(this ObjectCreationExpressionSyntax declaration, params ArgumentSyntax[] arguments)
-        => declaration.WithArgumentList(ArgumentList(new SeparatedSyntaxList<ArgumentSyntax>().AddRange(arguments)));
+        => declaration.WithArgumentList(ArgumentList([.. arguments]));
 
     public static ParameterSyntax Parameter(IParameterSymbol parameter, bool ignoreRefKind = false)
     {
@@ -189,10 +197,10 @@ public static class CustomSyntaxFactory
 
     public static TypeParameterConstraintClauseSyntax TypeParameterConstraintClause(ITypeParameterSymbol typeParameter)
     {
-        
+
         var result = SyntaxFactory.TypeParameterConstraintClause(typeParameter.Name);
-        
-        if(typeParameter.HasUnmanagedTypeConstraint)
+
+        if (typeParameter.HasUnmanagedTypeConstraint)
         {
             result = result.AddConstraints(TypeConstraint(
                                                 IdentifierName(
@@ -203,7 +211,7 @@ public static class CustomSyntaxFactory
                                                         "unmanaged",
                                                         TriviaList()))));
         }
-        else if(typeParameter.HasValueTypeConstraint)
+        else if (typeParameter.HasValueTypeConstraint)
         {
             result = result.AddConstraints(ClassOrStructConstraint(SyntaxKind.StructConstraint));
         }
@@ -219,10 +227,10 @@ public static class CustomSyntaxFactory
 
         foreach (var item in typeParameter.ConstraintTypes)
         {
-           result = result.AddConstraints(TypeConstraint(TypeSyntax(item)));
+            result = result.AddConstraints(TypeConstraint(TypeSyntax(item)));
         }
 
-        if(typeParameter.HasConstructorConstraint)
+        if (typeParameter.HasConstructorConstraint)
         {
             result = result.AddConstraints(ConstructorConstraint());
         }
@@ -236,14 +244,12 @@ public static class CustomSyntaxFactory
 
         variables = variables.Select(v => v.WithInitializer(EqualsValueClause(initializer)));
 
-        return variableDeclarationSyntax.WithVariables(new SeparatedSyntaxList<VariableDeclaratorSyntax>().AddRange(variables));
+        return variableDeclarationSyntax.WithVariables([.. variables]);
     }
 
     public static VariableDeclarationSyntax WithVariables(this VariableDeclarationSyntax variableDeclarationSyntax, VariableDeclaratorSyntax variable)
     {
-        IEnumerable<VariableDeclaratorSyntax> variables = variableDeclarationSyntax.Variables;
-
-        return variableDeclarationSyntax.WithVariables(new SeparatedSyntaxList<VariableDeclaratorSyntax>().Add(variable));
+        return variableDeclarationSyntax.WithVariables([variable]);
     }
 
     public static string CamelCase(string value)

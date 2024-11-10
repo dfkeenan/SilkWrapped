@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using SilkWrapped.ObjectModelTool.SyntaxTransformers;
 
@@ -8,7 +7,7 @@ namespace SilkWrapped.ObjectModelTool;
 internal class Program
 {
     // https://learn.microsoft.com/en-us/dotnet/api/system.threading.cancellationtokensource
-    private static readonly CancellationTokenSource cts = new CancellationTokenSource();
+    private static readonly CancellationTokenSource cts = new();
 
 
 
@@ -24,7 +23,7 @@ internal class Program
     /// <param name="disposalMethodNamePattern"></param>
     /// <param name="handleTypeNameExclusionPattern"></param>
     /// <param name="whatIf"></param>
-    static async Task Main(
+    private static async Task Main(
         FileInfo projectPath,
         string containerType,
         string apiOwnerType,
@@ -51,7 +50,7 @@ internal class Program
         var token = cts.Token;
 
         //TODO: Validations
-        if (projectPath is null or { Exists: false})
+        if (projectPath is null or { Exists: false })
         {
             Console.WriteLine("Valid project not supplied");
             return;
@@ -66,7 +65,7 @@ internal class Program
             {
                 if (!whatIf)
                 {
-                    file.Delete(); 
+                    file.Delete();
                 }
                 else
                 {
@@ -86,13 +85,13 @@ internal class Program
             }
         }
 
-        Console.WriteLine(new string('-',80));
+        Console.WriteLine(new string('-', 80));
 
         using var workspace = MSBuildWorkspace.Create();
         var project = await workspace.OpenProjectAsync(projectPath.FullName);
         var compilation = await project.GetCompilationAsync(token);
 
-        if(compilation is null)
+        if (compilation is null)
         {
             Console.WriteLine("Failed to get project compilation");
             return;
@@ -124,21 +123,39 @@ internal class Program
 
         var objectGenerator = new ObjectModelGenerator(containerTypeSymbol, apiOwnerTypeSymbol, options);
         objectGenerator.CollectTypeInformation(token);
-        var decompiler = new Decompiler(compilation, apiOwnerTypeSymbol, options);
 
-        var transformations = new List<CSharpSyntaxRewriter>()
+        var decompilerOptions = DecompilerOptions.Default with
         {
-            new ReplaceNamespace(apiOwnerTypeSymbol.ContainingNamespace.ToDisplayString(), containerTypeSymbol.ContainingNamespace.ToDisplayString()),
+            Filter = (ts) =>
+            {
+                switch (ts.TypeKind)
+                {
+                    case TypeKind.Enum:
+                    case TypeKind.Struct:
+                        break;
+                    default:
+                        return false;
+                }
+
+                return !objectGenerator.IsHandleType(ts, true);
+            },
+
+            Rewriters =
+            [
+                new ReplaceNamespace(apiOwnerTypeSymbol.ContainingNamespace.ToDisplayString(), containerTypeSymbol.ContainingNamespace.ToDisplayString()),
+                new RemoveAttributes("NativeName"),
+                new BytePointerToString("Label", "Key"),
+                new RemoveChainingPointers(),
+                new TypeReplacer(objectGenerator.GetHandleTypeMap(true, true)),
+                new MakeStructPartial()
+            ]
         };
 
-        foreach (var item in decompiler.GetTypes(ts => !objectGenerator.IsHandleType(ts, true)))
-        {
-             SyntaxNode syntax = item.DecompiledSyntax;
+        var decompiler = new Decompiler(compilation, apiOwnerTypeSymbol, decompilerOptions);
 
-            foreach (var transformer in transformations)
-            {
-                syntax = transformer.Visit(syntax);
-            }
+        foreach (var item in decompiler.GetTypes())
+        {
+            SyntaxNode syntax = item.DecompiledSyntax;
 
             string subDirectory = item.Symbol.TypeKind switch
             {
@@ -161,15 +178,12 @@ internal class Program
 
         Console.WriteLine(new string('-', 80));
 
-        
-
-
-        foreach((string Name, string Source) in objectGenerator.GetSources(token))
+        foreach ((string Name, string Source) in objectGenerator.GetSources(token))
         {
             var fileName = Path.Combine(outputDrectory.FullName, $"{Name}.cs");
             if (!whatIf)
             {
-                File.WriteAllText(fileName, Source); 
+                File.WriteAllText(fileName, Source);
             }
             else
             {

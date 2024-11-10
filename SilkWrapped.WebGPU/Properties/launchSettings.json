@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SilkWrapped.WebGPU": {
+      "commandName": "Project",
+      "hotReloadEnabled": false
+    }
+  }
+}

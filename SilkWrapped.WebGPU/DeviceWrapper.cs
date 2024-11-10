@@ -3,21 +3,21 @@ public unsafe partial class DeviceWrapper
 {
     public ShaderModuleWrapper CreateShaderModuleWGSL(string code)
     {
-        var wgslDescriptor = new ShaderModuleWGSLDescriptor
+        var wgslDescriptor = new Silk.NET.WebGPU.ShaderModuleWGSLDescriptor
         {
             Code = (byte*)SilkMarshal.StringToPtr(code),
-            Chain = new ChainedStruct
+            Chain = new Silk.NET.WebGPU.ChainedStruct
             {
-                SType = SType.ShaderModuleWgslDescriptor
+                SType = Silk.NET.WebGPU.SType.ShaderModuleWgslDescriptor
             }
         };
 
-        var shaderModuleDescriptor = new ShaderModuleDescriptor
+        var shaderModuleDescriptor = new Silk.NET.WebGPU.ShaderModuleDescriptor
         {
-            NextInChain = (ChainedStruct*)(&wgslDescriptor),
+            NextInChain = (Silk.NET.WebGPU.ChainedStruct*)(&wgslDescriptor),
         };
 
-        var result = CreateShaderModule(shaderModuleDescriptor);
+        var result = CreateShaderModule(in shaderModuleDescriptor);
 
         SilkMarshal.FreeString((nint)wgslDescriptor.Code);
 
@@ -26,16 +26,16 @@ public unsafe partial class DeviceWrapper
 
     partial void TextureWrapperCreated(TextureWrapper value)
     {
-        
+
     }
 
     partial void Disposing()
     {
-        
+
     }
 
     partial void Disposed()
     {
-        
+
     }
 }

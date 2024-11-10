@@ -9,18 +9,29 @@ namespace SilkWrapped.ObjectModelTool;
 
 internal record DecompiledTypeInfo(INamedTypeSymbol Symbol, SyntaxNode DecompiledSyntax);
 
+internal record DecompilerOptions()
+{
+    public DecompilerSettings Settings { get; init; } = new DecompilerSettings();
+
+    public Func<ITypeSymbol, bool> Filter { get; init; } = (_ => true);
+
+    public ImmutableList<CSharpSyntaxRewriter> Rewriters { get; init; } = [];
+
+    public static DecompilerOptions Default { get; } = new DecompilerOptions();
+}
+
 internal class Decompiler
 {
     private readonly IAssemblySymbol containingAssembly;
     private readonly ImmutableArray<INamedTypeSymbol> namedTypeSymbols;
-    private readonly GeneratorOptions? options;
+    private readonly DecompilerOptions options;
     private CSharpDecompiler? decompiler;
 
-    public Decompiler(Compilation compilation, INamedTypeSymbol apiOwnerTypeSymbol, GeneratorOptions? options)
+    public Decompiler(Compilation compilation, INamedTypeSymbol apiOwnerTypeSymbol, DecompilerOptions? options = null)
     {
         this.containingAssembly = apiOwnerTypeSymbol.ContainingAssembly;
         this.namedTypeSymbols = apiOwnerTypeSymbol.ContainingNamespace.GetTypeMembers();
-        this.options = options;
+        this.options = options ?? DecompilerOptions.Default;
 
         if (compilation.GetMetadataReference(containingAssembly) is PortableExecutableReference { FilePath: string assemblyFileName } reference)
         {
@@ -32,26 +43,22 @@ internal class Decompiler
 
     }
 
-    public IEnumerable<DecompiledTypeInfo> GetTypes(Func<ITypeSymbol, bool> filter)
+    public IEnumerable<DecompiledTypeInfo> GetTypes()
     {
         if(decompiler is null)
             yield break;
 
         foreach (var namedTypeSymbol in namedTypeSymbols)
         {
-            switch (namedTypeSymbol.TypeKind)
-            {
-                case TypeKind.Enum:
-                    break;
-                case TypeKind.Struct:
-                    break;
-                default:
-                    continue;
-            }
-
-            if (!filter(namedTypeSymbol)) continue;
+            if (!options.Filter(namedTypeSymbol)) continue;
 
             SyntaxNode syntax = GetSyntax(namedTypeSymbol);
+
+            foreach (var rewriter in options.Rewriters)
+            {
+                syntax = rewriter.Visit(syntax);
+            }
+
             yield return new DecompiledTypeInfo(namedTypeSymbol, syntax);
         }
     }

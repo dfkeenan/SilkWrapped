@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -15,9 +16,9 @@ internal record class GeneratorOptions
     public const string DefaultDisposalMethodNamePattern = ".*(Release|Drop|Destroy).*";
     public const string DefaultHandleTypeNameExclusionPattern = "(Pfn).*|.*Descriptor";
 
-    public string WrapperNameFormatString        { get; set; } = DefaultWrapperNameFormatString;
-    public string ConstructionMethodNamePattern  { get; set; } = DefaultConstructionMethodNamePattern;
-    public string DisposalMethodNamePattern      { get; set; } = DefaultDisposalMethodNamePattern;
+    public string WrapperNameFormatString { get; set; } = DefaultWrapperNameFormatString;
+    public string ConstructionMethodNamePattern { get; set; } = DefaultConstructionMethodNamePattern;
+    public string DisposalMethodNamePattern { get; set; } = DefaultDisposalMethodNamePattern;
     public string HandleTypeNameExclusionPattern { get; set; } = DefaultHandleTypeNameExclusionPattern;
 }
 
@@ -27,12 +28,12 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
     public ObjectModelGenerator(INamedTypeSymbol containerType, ITypeSymbol apiOwnerType, GeneratorOptions options)
     {
 
-        rootNamespace = NamespaceDeclaration(ParseName(containerType.ContainingNamespace.ToString()));
+        rootNamespace = NamespaceDeclaration(ParseName(containerType.ContainingNamespace.ToString()!));
         this.containerType = containerType;
         this.apiOwnerType = apiOwnerType;
 
-        extensionTypes = new List<ITypeSymbol>();
-        extensionProperties = new List<IPropertySymbol>();
+        extensionTypes = [];
+        extensionProperties = [];
 
         foreach (var member in containerType.GetMembers())
         {
@@ -72,27 +73,26 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         }
     }
 
-    private NamespaceDeclarationSyntax? rootNamespace;
+    private readonly NamespaceDeclarationSyntax? rootNamespace;
     private readonly INamedTypeSymbol containerType;
-    private ITypeSymbol? apiType;
-    private IPropertySymbol? apiProperty;
-    private ITypeSymbol apiOwnerType;
-    private List<ITypeSymbol> extensionTypes;
-    private List<IPropertySymbol> extensionProperties;
-    private string wrapperNameFormatString;
-    private Regex constructionMethodNamePattern;
-    private Regex disposalMethodNamePattern;
-    private Regex handleTypeNameExclusionPattern;
+    private readonly ITypeSymbol? apiType;
+    private readonly IPropertySymbol? apiProperty;
+    private readonly ITypeSymbol apiOwnerType;
+    private readonly List<ITypeSymbol> extensionTypes;
+    private readonly List<IPropertySymbol> extensionProperties;
+    private readonly string wrapperNameFormatString;
+    private readonly Regex constructionMethodNamePattern;
+    private readonly Regex disposalMethodNamePattern;
+    private readonly Regex handleTypeNameExclusionPattern;
     private readonly MethodSymbolGroupCollection constructionMethods = new();
     private readonly MethodSymbolGroupCollection methods = new();
     private readonly MethodSymbolGroupCollection disposalMethods = new();
     private readonly HashSet<ITypeSymbol> handleTypes = new(SymbolEqualityComparer.Default);
     private readonly HashSet<ITypeSymbol> handleStructTypes = new(SymbolEqualityComparer.Default);
+    private readonly Dictionary<ITypeSymbol, int> disposeMethodPriority;
 
-    Dictionary<ITypeSymbol, int> disposeMethodPriority;
-
-    private readonly List<INamedTypeSymbol> delegateTypeSymbols = new();
-    private readonly Dictionary<string, IMethodSymbol> delegateMethodSymbols = new();
+    private readonly List<INamedTypeSymbol> delegateTypeSymbols = [];
+    private readonly Dictionary<string, IMethodSymbol> delegateMethodSymbols = [];
 
     private static readonly ArgumentSyntax handleArgument = Argument(IdentifierName("Handle"));
     private static readonly VariableDeclarationSyntax resultVariable = VariableDeclaration(
@@ -262,8 +262,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
 
                 methodDeclaration = methodDeclaration
-                    .WithTypeParameterList(TypeParameterList(new SeparatedSyntaxList<TypeParameterSyntax>().AddRange(typeParameters)))
-                    .WithConstraintClauses(new SyntaxList<TypeParameterConstraintClauseSyntax>().AddRange(constraints));
+                    .WithTypeParameterList(TypeParameterList([.. typeParameters]))
+                    .WithConstraintClauses([.. constraints]);
             }
 
             BlockSyntax body = Block();
@@ -383,7 +383,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                 string apiMember = MethodApiMember(disposalMethod);
                 bool isIfStatement = false;
 
-                if (Equals(apiType!, disposalMethod.ContainingType))
+                if (SymbolEquals(apiType!, disposalMethod.ContainingType))
                 {
                     statement = $"{apiMember}.{disposalMethod.Name}(Handle);";
                 }
@@ -441,7 +441,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
     private string MethodApiMember(IMethodSymbol method)
     {
-        if (Equals(apiType!, method.ContainingType))
+        if (SymbolEquals(apiType!, method.ContainingType))
         {
             return $"Api.{apiProperty!.Name}";
         }
@@ -485,7 +485,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         if (apiProperty is null) return;
         if (rootNamespace is null) return;
         if (cancellationToken.IsCancellationRequested) return;
-        if(handleTypes.Any()) return;
+        if (handleTypes.Count != 0) return;
 
         CollectTypeInformation(apiType, cancellationToken);
 
@@ -510,7 +510,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
                                   method.MethodKind == MethodKind.Ordinary &&
                                   method.IsStatic == false &&
                                   method.Parameters.Length > 0 &&
-                                  Equals(typeSymbol, method.ReturnType) == false
+                                  SymbolEquals(typeSymbol, method.ReturnType) == false
                             select method;
 
         foreach (var methodSymbol in methodSymbols)
@@ -562,7 +562,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         foreach (var delegateTypeSymbol in delegateTypeSymbols)
         {
             this.delegateTypeSymbols.Add(delegateTypeSymbol);
-            delegateMethodSymbols[delegateTypeSymbol.ToString()] = delegateTypeSymbol.DelegateInvokeMethod!;
+            delegateMethodSymbols[delegateTypeSymbol.ToString()!] = delegateTypeSymbol.DelegateInvokeMethod!;
         }
 
     }
@@ -596,7 +596,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
         if (IsHandleType(parameterSymbol.Type))
         {
-            return Equals(parameterSymbol.Type, handeType)
+            return SymbolEquals(parameterSymbol.Type, handeType)
                 ? argument.WithExpression(ParseExpression($"{parameterSymbol.Name} == default ? null : (Handle == {parameterSymbol.Name} ? this : new {GetWrapperName(parameterSymbol.Type)}(Api, {parameterSymbol.Name}))"))
                 : argument.WithExpression(ParseExpression($"{parameterSymbol.Name} == default ? null : (new {GetWrapperName(parameterSymbol.Type)}(Api, {parameterSymbol.Name}))"));
         }
@@ -616,20 +616,20 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
         if (IsFuntionPointer(parameterSymbol.Type))
         {
-            return parameter.WithType(IdentifierName(parameterSymbol.Type.Name.Substring("Pfn".Length)));
+            return parameter.WithType(IdentifierName(parameterSymbol.Type.Name["Pfn".Length..]));
         }
 
         return parameter;
     }
 
-    private bool IsFuntionPointer(ITypeSymbol typeSymbol)
+    private static bool IsFuntionPointer(ITypeSymbol typeSymbol)
         => typeSymbol is { IsValueType: true, IsReadOnly: true } && typeSymbol.Name.StartsWith("Pfn");
 
     private IEnumerable<IParameterSymbol> GetFunctionPointerParameters(ITypeSymbol typeSymbol)
-        => delegateMethodSymbols[typeSymbol.ToString().Replace("Pfn", "")].Parameters;
+        => delegateMethodSymbols[typeSymbol.ToString()!.Replace("Pfn", "")].Parameters;
 
 
-    private bool ShouldAddDefaultParamOverride<T>(IMethodSymbol methodSymbol, T declaration, out T? overrideDeclaration)
+    private static bool ShouldAddDefaultParamOverride<T>(IMethodSymbol methodSymbol, T declaration, [NotNullWhen(true)] out T? overrideDeclaration)
         where T : BaseMethodDeclarationSyntax
     {
         overrideDeclaration = null;
@@ -650,13 +650,13 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
 
         overrideDeclaration = (T)declaration.WithBody(body)
-                                         .WithParameterList(Enumerable.Empty<ParameterSyntax>());
+                                         .WithParameterList([]);
 
         return true;
     }
 
 
-    private bool ShouldDefaultValue(IParameterSymbol parameterSymbol)
+    private static bool ShouldDefaultValue(IParameterSymbol parameterSymbol)
     {
         if (parameterSymbol.RefKind is not (RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter)) return false;
         if (parameterSymbol.Type.IsValueType is false) return false;
@@ -669,8 +669,8 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
             if (member is not IFieldSymbol fieldSymbol) continue;
             if (fieldSymbol.IsStatic) continue;
 
-            if (fieldSymbol.Name == "NextInChain" && fieldSymbol.Type.ToString().EndsWith("ChainedStruct*")) continue;
-            if (fieldSymbol.Name == "Label" && fieldSymbol.Type.ToString().EndsWith("byte*")) continue;
+            if (fieldSymbol.Name == "NextInChain" && fieldSymbol.Type.ToString()!.EndsWith("ChainedStruct*")) continue;
+            if (fieldSymbol.Name == "Label" && fieldSymbol.Type.ToString()!.EndsWith("byte*")) continue;
 
             return false;
         }
@@ -685,7 +685,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         {
             typeSymbol = pointerTypeSymbol.PointedAtType;
         }
-        return Equals(apiOwnerType, typeSymbol);
+        return SymbolEquals(apiOwnerType, typeSymbol);
     }
 
     private bool IsConstructionMethod(IMethodSymbol method)
@@ -709,7 +709,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
 
     private bool IsHandleType(ITypeSymbol typeSymbol, ITypeSymbol handleTypeCandidate)
     {
-        return IsStructure(handleTypeCandidate) && Equals(GetNamespace(handleTypeCandidate), GetNamespace(typeSymbol)) && !IsExcludedHandleType(handleTypeCandidate);
+        return IsStructure(handleTypeCandidate) && SymbolEquals(GetNamespace(handleTypeCandidate), GetNamespace(typeSymbol)) && !IsExcludedHandleType(handleTypeCandidate);
     }
 
     private static ITypeSymbol TypeOrPointedAtType(ITypeSymbol typeSymbol)
@@ -722,7 +722,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return typeSymbol;
     }
 
-    private INamespaceSymbol GetNamespace(ITypeSymbol typeSymbol)
+    private static INamespaceSymbol GetNamespace(ITypeSymbol typeSymbol)
     {
         if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
         {
@@ -732,7 +732,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return typeSymbol.ContainingNamespace;
     }
 
-    private bool IsStructure(ITypeSymbol typeSymbol)
+    private static bool IsStructure(ITypeSymbol typeSymbol)
     {
         if (typeSymbol is IPointerTypeSymbol pointerTypeSymbol)
         {
@@ -742,12 +742,12 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return typeSymbol.TypeKind == TypeKind.Structure;
     }
 
-    private bool Equals(ISymbol symbol, ISymbol other)
+    private static bool SymbolEquals(ISymbol symbol, ISymbol other)
     {
         return symbol.Equals(other, SymbolEqualityComparer.Default);
     }
 
-    private string GetName(ITypeSymbol typeSymbol)
+    private static string GetName(ITypeSymbol typeSymbol)
     {
         var nameType = typeSymbol;
         if (nameType is IPointerTypeSymbol pointerTypeSymbol)
@@ -774,9 +774,9 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return (name, rootNamespace!.WithMembers(new SyntaxList<MemberDeclarationSyntax>(memberDeclaration)).NormalizeWhitespace().ToFullString());
     }
 
-    public bool Equals(ObjectModelGenerator other)
+    public bool Equals(ObjectModelGenerator? other)
     {
-        if (ReferenceEquals(other, null)) return false;
+        if (other is null) return false;
 
         if (!SymbolEqualityComparer.Default.Equals(apiOwnerType, other.apiOwnerType)) return false;
         if (!SymbolEqualityComparer.Default.Equals(containerType, other.containerType)) return false;
@@ -790,7 +790,7 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         return true;
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         return obj is ObjectModelGenerator g && Equals(g);
     }
@@ -806,6 +806,42 @@ internal class ObjectModelGenerator : IEquatable<ObjectModelGenerator>
         hc.Add(disposalMethodNamePattern);
         hc.Add(handleTypeNameExclusionPattern);
         return hc.ToHashCode();
+    }
+
+    internal IDictionary<TypeSyntax, TypeSyntax> GetHandleTypeMap(bool removeQualification = false, bool makeNullable = false)
+    {
+        var result = new Dictionary<TypeSyntax, TypeSyntax>(new DisplayNameEqualityComparer());
+
+        foreach (var item in handleTypes)
+        {
+            var key = TypeSyntax(item, removeQualification);
+
+            var value = ParseTypeName(GetWrapperName(item));
+
+            if (makeNullable)
+            {
+                value = NullableType(value);
+            }
+
+            result.Add(key, value);
+        }
+        return result;
+    }
+
+    private class DisplayNameEqualityComparer : IEqualityComparer<TypeSyntax>
+    {
+        public bool Equals(TypeSyntax? x, TypeSyntax? y)
+        {
+            if (x == null && y == null) return true;
+            if (x == null || y == null) return false;
+
+            return x.IsEquivalentTo(y);
+        }
+
+        public int GetHashCode([DisallowNull] TypeSyntax obj)
+        {
+            return obj.ToString().GetHashCode();
+        }
     }
 }
 
