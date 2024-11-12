@@ -147,6 +147,7 @@ internal class Program
                 new BytePointerToString("Label", "Key"),
                 new RemoveChainingPointers(),
                 new TypeReplacer(objectGenerator.GetHandleTypeMap(true, true)),
+                new PointerToSpan(),
                 new MakeStructPartial()
             ]
         };

@@ -8,7 +8,7 @@ internal class RemoveAttributes(params string[] names) : CSharpSyntaxRewriter
     private readonly HashSet<string> names = new HashSet<string>(names);
     public override SyntaxNode? VisitAttribute(AttributeSyntax node)
     {
-        if (names.Contains(node.Name.ToFullString()))
+        if (names.Contains(node.Name.ToString()))
         {
             return null;
         }

@@ -27,7 +27,7 @@ internal class RemoveChainingPointers : CSharpSyntaxRewriter
 
             var statementsToRemove = from statement in body!.Statements.OfType<IfStatementSyntax>()
                                      from identifier in statement.DescendantNodes().OfType<IdentifierNameSyntax>()
-                                     where parameters.Any(p => p.Identifier.ToFullString() == identifier.ToFullString())
+                                     where parameters.Any(p => p.Identifier.ToString() == identifier.ToString())
                                      select statement;
             body = body.RemoveNodes(statementsToRemove, SyntaxRemoveOptions.KeepEndOfLine);
 
