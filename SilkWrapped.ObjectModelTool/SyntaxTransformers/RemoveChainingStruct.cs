@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace SilkWrapped.ObjectModelTool.SyntaxTransformers;
-internal class RemoveChainingPointers : CSharpSyntaxRewriter
+internal class RemoveChainingStruct : CSharpSyntaxRewriter
 {
     public override SyntaxNode? VisitFieldDeclaration(FieldDeclarationSyntax node)
     {
@@ -41,8 +41,7 @@ internal class RemoveChainingPointers : CSharpSyntaxRewriter
 
     private static bool TypeIsChangedStruct(TypeSyntax type)
     {
-        return type is PointerTypeSyntax pointerType &&
-            pointerType.ElementType.ToFullString() is string typeName &&
-            (typeName == "" | typeName == "ChainedStruct");
+        return type is IdentifierNameSyntax { Identifier.Text: "ChainedStructOut" or "ChainedStruct" } ||
+               type is PointerTypeSyntax pointerType && TypeIsChangedStruct(pointerType.ElementType);
     }
 }

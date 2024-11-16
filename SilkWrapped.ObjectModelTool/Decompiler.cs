@@ -35,9 +35,9 @@ internal class Decompiler
 
         if (compilation.GetMetadataReference(containingAssembly) is PortableExecutableReference { FilePath: string assemblyFileName } reference)
         {
-            DecompilerSettings settings = new DecompilerSettings();
 
-            decompiler = new CSharpDecompiler(assemblyFileName, new AssemblyResolver(compilation), settings);
+
+            decompiler = new CSharpDecompiler(assemblyFileName, new AssemblyResolver(compilation), this.options.Settings);
 
         }
 
@@ -45,7 +45,7 @@ internal class Decompiler
 
     public IEnumerable<DecompiledTypeInfo> GetTypes()
     {
-        if(decompiler is null)
+        if (decompiler is null)
             yield break;
 
         foreach (var namedTypeSymbol in namedTypeSymbols)
@@ -91,7 +91,7 @@ internal class Decompiler
 
         public Task<PEFile?> ResolveAsync(IAssemblyReference reference)
         {
-            if(assemblyMap.TryGetValue(reference.Name, out var assembly))
+            if (assemblyMap.TryGetValue(reference.Name, out var assembly))
             {
                 return Task.FromResult<PEFile?>(new PEFile(assembly));
             }

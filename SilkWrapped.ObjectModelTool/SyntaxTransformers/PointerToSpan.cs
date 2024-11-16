@@ -29,7 +29,7 @@ internal class PointerToSpan : CSharpSyntaxRewriter
             FieldDeclarationSyntax countFieldNode
                 = node.Members.OfType<FieldDeclarationSyntax>()
                               .First(n => n.Declaration.Variables[0].Identifier.ToString() == countField);
-            node = node!.RemoveNode(countFieldNode, SyntaxRemoveOptions.KeepLeadingTrivia)!;
+            node = node!.RemoveNode(countFieldNode, SyntaxRemoveOptions.KeepNoTrivia)!;
 
             makeRef = true;
         }

@@ -12,7 +12,7 @@ internal class BytePointerToString(params string[] names) : CSharpSyntaxRewriter
     public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
     {
         if (node.Type is PointerTypeSyntax pointerType &&
-            pointerType.ElementType.ToFullString() == "byte")
+            pointerType.ElementType.ToString() == "byte")
         {
             return node.WithType(stringSyntax);
         }
@@ -23,7 +23,7 @@ internal class BytePointerToString(params string[] names) : CSharpSyntaxRewriter
     public override SyntaxNode? VisitParameter(ParameterSyntax node)
     {
         if (node.Type is PointerTypeSyntax pointerType &&
-            pointerType.ElementType.ToFullString() == "byte")
+            pointerType.ElementType.ToString() == "byte")
         {
             return node.WithType(stringSyntax);
         }

@@ -1,5 +1,9 @@
-﻿using Microsoft.CodeAnalysis;
+﻿global using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using System.IO;
+using System.Text;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.CodeAnalysis.Text;
 using SilkWrapped.ObjectModelTool.SyntaxTransformers;
 
 namespace SilkWrapped.ObjectModelTool;
@@ -49,8 +53,8 @@ internal class Program
 
         var token = cts.Token;
 
-        //TODO: Validations
-        if (projectPath is null or { Exists: false })
+
+        if (projectPath is not { Exists: false })
         {
             Console.WriteLine("Valid project not supplied");
             return;
@@ -86,6 +90,14 @@ internal class Program
         }
 
         Console.WriteLine(new string('-', 80));
+
+        //HACK: Calling AddDocument() on a SDK-Style Project Adds a Compile Element
+        // https://github.com/dotnet/roslyn/issues/36781
+        string? projectBackup = null;
+        if (!whatIf)
+        {
+            projectBackup = await File.ReadAllTextAsync(projectPath.FullName, token);
+        }
 
         using var workspace = MSBuildWorkspace.Create();
         var project = await workspace.OpenProjectAsync(projectPath.FullName);
@@ -126,12 +138,21 @@ internal class Program
 
         var decompilerOptions = DecompilerOptions.Default with
         {
+            Settings = new()
+            {
+
+            },
+
             Filter = (ts) =>
             {
                 switch (ts.TypeKind)
                 {
                     case TypeKind.Enum:
+                        break;
                     case TypeKind.Struct:
+                        if (ts.Name.StartsWith("Pfn")) return false;
+                        if (ts.Name.StartsWith("ShaderModule")) return false;
+                        if (ts.Name.StartsWith("ChainedStruct")) return false;
                         break;
                     default:
                         return false;
@@ -145,10 +166,11 @@ internal class Program
                 new ReplaceNamespace(apiOwnerTypeSymbol.ContainingNamespace.ToDisplayString(), containerTypeSymbol.ContainingNamespace.ToDisplayString()),
                 new RemoveAttributes("NativeName"),
                 new BytePointerToString("Label", "Key"),
-                new RemoveChainingPointers(),
-                new TypeReplacer(objectGenerator.GetHandleTypeMap(true, true)),
+                new RemoveChainingStruct(),
+                new TypeReplacer(objectGenerator.GetHandleTypeMap(true)),
                 new PointerToSpan(),
-                new MakeStructPartial()
+                new MakeStructPartial(),
+                new PointerToNullableType()
             ]
         };
 
@@ -165,13 +187,15 @@ internal class Program
             };
 
             var fileName = Path.Combine(outputDrectory.FullName, subDirectory, $"{item.Symbol.Name}.cs");
-            if (!whatIf)
-            {
-                Directory.CreateDirectory(Path.Combine(outputDrectory.FullName, subDirectory));
 
-                File.WriteAllText(fileName, syntax.ToFullString());
-            }
-            else
+            string directory = Path.Combine(outputDrectory.FullName, subDirectory);
+            Directory.CreateDirectory(directory);
+            var document = project.AddDocument(fileName, syntax.GetText());
+
+            project = document.Project;
+
+
+            if (whatIf)
             {
                 Console.WriteLine($"Will create '{fileName}'");
             }
@@ -182,14 +206,21 @@ internal class Program
         foreach ((string Name, string Source) in objectGenerator.GetSources(token))
         {
             var fileName = Path.Combine(outputDrectory.FullName, $"{Name}.cs");
-            if (!whatIf)
-            {
-                File.WriteAllText(fileName, Source);
-            }
-            else
+            var document = project.AddDocument(fileName, SourceText.From(Source));
+            project = document.Project;
+            if (whatIf)
             {
                 Console.WriteLine($"Will create '{fileName}'");
             }
+        }
+
+        if (!whatIf)
+        {
+            workspace.TryApplyChanges(project.Solution);
+
+            //HACK: Calling AddDocument() on a SDK-Style Project Adds a Compile Element
+            // https://github.com/dotnet/roslyn/issues/36781
+            await File.WriteAllTextAsync(projectPath.FullName, projectBackup, Encoding.UTF8, token);
         }
     }
 }

@@ -32,7 +32,6 @@ internal class Demo : IDisposable
     private DeviceWrapper? device;
 
     private QueueWrapper? queue;
-    private SurfaceConfiguration surfaceConfiguration;
     private ShaderModuleWrapper? shader;
     private RenderPipelineWrapper? renderPipeline;
 
@@ -108,21 +107,17 @@ internal class Demo : IDisposable
         UpdateProjectionMatrix();
     }
 
-
-    unsafe static void DV(DeviceLostReason reason, byte* message, void* userdata)
+    private static unsafe void DV(DeviceLostReason reason, string? message, void* userdata)
     {
 
     }
 
-    unsafe static void EC(ErrorType reason, byte* message, void* userdata)
+    private static unsafe void EC(ErrorType reason, string? message, void* userdata)
     {
-        var x = Marshal.PtrToStringAnsi((nint)message);
+        
     }
 
-    unsafe static DeviceDescriptor d = new DeviceDescriptor
-    {
-        DeviceLostCallback = new PfnDeviceLostCallback(DV)
-    };
+   
     private TextureFormat[] surfaceFormats;
 
     private void OnLoad()
@@ -183,7 +178,7 @@ internal class Demo : IDisposable
 
         unsafe
         {
-            surfaceFormats = new Span<TextureFormat>(surfaceCapabilities.Formats, (int)surfaceCapabilities.FormatCount).ToArray();
+            surfaceFormats = surfaceCapabilities.Formats.ToArray();
 
             var dummy = 0;
             device.SetUncapturedErrorCallback(EC, ref dummy);
@@ -191,7 +186,7 @@ internal class Demo : IDisposable
 
             { //Create texture and texture view
                 using var image = Image.Load<Rgba32>("silk.png");
-                
+
                 var viewFormat = TextureFormat.Rgba8Unorm;
 
                 var descriptor = new TextureDescriptor
@@ -202,8 +197,7 @@ internal class Demo : IDisposable
                     MipLevelCount = 1,
                     SampleCount = 1,
                     Dimension = TextureDimension.Dimension2D,
-                    ViewFormats = &viewFormat,
-                    ViewFormatCount = 1
+                    ViewFormats = [viewFormat],
                 };
 
                 texture = device.CreateTexture(in descriptor);
@@ -246,7 +240,7 @@ internal class Demo : IDisposable
                         for (var i = 0; i < x.Height; i++)
                         {
                             var imageRow = x.GetRowSpan(i);
-                            
+
                             var imageCopyTexture = new ImageCopyTexture
                             {
                                 Texture = texture,
@@ -282,57 +276,50 @@ internal class Demo : IDisposable
             } //Create sampler
 
             { //Create bind group for sampler and textureview
-                var entries = stackalloc BindGroupLayoutEntry[2];
-                entries[0] = new BindGroupLayoutEntry
-                {
-                    Binding = 0,
-                    Texture = new TextureBindingLayout
-                    {
-                        Multisampled = false,
-                        SampleType = TextureSampleType.Float,
-                        ViewDimension = TextureViewDimension.Dimension2D
-                    },
-                    Visibility = ShaderStage.Fragment
-                };
-                entries[1] = new BindGroupLayoutEntry
-                {
-                    Binding = 1,
-                    Sampler = new SamplerBindingLayout
-                    {
-                        Type = SamplerBindingType.Filtering
-                    },
-                    Visibility = ShaderStage.Fragment
-                };
-
                 var layoutDescriptor = new BindGroupLayoutDescriptor
                 {
-                    Entries = entries,
-                    EntryCount = 2
+                    Entries = [ new BindGroupLayoutEntry
+                                {
+                                    Binding = 0,
+                                    Texture = new TextureBindingLayout
+                                    {
+                                        Multisampled = false,
+                                        SampleType = TextureSampleType.Float,
+                                        ViewDimension = TextureViewDimension.Dimension2D
+                                    },
+                                    Visibility = ShaderStage.Fragment
+                                },
+                                new BindGroupLayoutEntry
+                                {
+                                    Binding = 1,
+                                    Sampler = new SamplerBindingLayout
+                                    {
+                                        Type = SamplerBindingType.Filtering
+                                    },
+                                    Visibility = ShaderStage.Fragment
+                                }
+                    ]
                 };
 
                 textureSamplerBindGroupLayout = device.CreateBindGroupLayout(in layoutDescriptor);
 
-                var bindGroupEntries = stackalloc BindGroupEntry[2];
-                bindGroupEntries[0] = new BindGroupEntry
-                {
-                    Binding = 0,
-                    TextureView = textureView
-                };
-                bindGroupEntries[1] = new BindGroupEntry
-                {
-                    Binding = 1,
-                    Sampler = sampler
-                };
-
                 var descriptor = new BindGroupDescriptor
                 {
-                    Entries = bindGroupEntries,
-                    EntryCount = 2,
+                    Entries = [new BindGroupEntry
+                                {
+                                    Binding = 0,
+                                    TextureView = textureView
+                                },
+                                new BindGroupEntry
+                                {
+                                    Binding = 1,
+                                    Sampler = sampler
+                                }],
                     Layout = textureSamplerBindGroupLayout
                 };
 
                 textureBindGroup = device.CreateBindGroup(in descriptor);
-                
+
             } //Create bind group for sampler and texture view
 
             { //Create buffer to store projection matrix
@@ -361,8 +348,7 @@ internal class Demo : IDisposable
 
                 var projectionMatrixLayoutDescriptor = new BindGroupLayoutDescriptor
                 {
-                    Entries = &entry,
-                    EntryCount = 1
+                    Entries = [entry]
                 };
 
                 projectionMatrixBindGroupLayout = device.CreateBindGroupLayout(in projectionMatrixLayoutDescriptor);
@@ -376,8 +362,7 @@ internal class Demo : IDisposable
 
                 BindGroupDescriptor projectionMatrixBindGroupDescriptor = new BindGroupDescriptor
                 {
-                    Entries = &bindGroupEntry,
-                    EntryCount = 1,
+                    Entries = [bindGroupEntry],
                     Layout = projectionMatrixBindGroupLayout
                 };
                 projectionMatrixBindGroup = device.CreateBindGroup(in projectionMatrixBindGroupDescriptor);
@@ -429,111 +414,95 @@ internal class Demo : IDisposable
 
     private unsafe void CreateRenderPipeline()
     {
-        var vertexAttributes = stackalloc VertexAttribute[2];
-
-        vertexAttributes[0] = new VertexAttribute
+        var vertexBufferLayout = new VertexBufferLayout
         {
-            Format = VertexFormat.Float32x2,
-            Offset = 0,
-            ShaderLocation = 0
-        };
-        vertexAttributes[1] = new VertexAttribute
-        {
-            Format = VertexFormat.Float32x2,
-            Offset = (ulong)sizeof(Vector2),
-            ShaderLocation = 1
-        };
-
-            var vertexBufferLayout = new VertexBufferLayout
-            {
-            Attributes = vertexAttributes,
-            AttributeCount = 2,
-                StepMode = VertexStepMode.Vertex,
+            Attributes = [
+                    new VertexAttribute
+                    {
+                        Format = VertexFormat.Float32x2,
+                        Offset = 0,
+                        ShaderLocation = 0
+                    },
+                    new VertexAttribute
+                    {
+                        Format = VertexFormat.Float32x2,
+                        Offset = (ulong)sizeof(Vector2),
+                        ShaderLocation = 1
+                    }
+                ],
+            StepMode = VertexStepMode.Vertex,
             ArrayStride = (ulong)sizeof(Vertex)
-            };
+        };
 
-
-
-        fixed (byte* fs_main = ("fs_main"u8))
-        fixed(byte* vs_main = ("vs_main"u8))
+        var blendState = new BlendState
         {
-            var blendState = new BlendState
+            Color = new BlendComponent
             {
-                Color = new BlendComponent
-                {
-                    SrcFactor = BlendFactor.SrcAlpha,
-                    DstFactor = BlendFactor.OneMinusSrcAlpha,
-                    Operation = BlendOperation.Add
-                },
-                Alpha = new BlendComponent
-                {
-                    SrcFactor = BlendFactor.One,
-                    DstFactor = BlendFactor.OneMinusSrcAlpha,
-                    Operation = BlendOperation.Add
-                }
-            };
-
-            var colorTargetState = new ColorTargetState
+                SrcFactor = BlendFactor.SrcAlpha,
+                DstFactor = BlendFactor.OneMinusSrcAlpha,
+                Operation = BlendOperation.Add
+            },
+            Alpha = new BlendComponent
             {
-                Format = surfaceCapabilities.Formats[0],
-                Blend = &blendState,
-                WriteMask = ColorWriteMask.All
-            };
+                SrcFactor = BlendFactor.One,
+                DstFactor = BlendFactor.OneMinusSrcAlpha,
+                Operation = BlendOperation.Add
+            }
+        };
 
-            var fragmentState = new FragmentState
+        var colorTargetState = new ColorTargetState
+        {
+            Format = surfaceCapabilities.Formats[0],
+            Blend = blendState,
+            WriteMask = ColorWriteMask.All
+        };
+
+        var fragmentState = new FragmentState
+        {
+            Module = shader,
+            Targets = colorTargetState,
+            EntryPoint = "fs_main"
+        };
+
+        var pipelineLayoutDescriptor = new PipelineLayoutDescriptor
+        {
+            BindGroupLayouts = [textureSamplerBindGroupLayout, projectionMatrixBindGroupLayout]
+        };
+
+        using var pipelineLayout = device!.CreatePipelineLayout(in pipelineLayoutDescriptor);
+
+        var renderPipelineDescriptor = new RenderPipelineDescriptor
+        {
+            Vertex = new VertexState
             {
                 Module = shader,
-                TargetCount = 1,
-                Targets = &colorTargetState,
-                EntryPoint = fs_main
-            };
-
-            var bindGroupLayouts = stackalloc BindGroupLayout*[2];
-            bindGroupLayouts[0] = textureSamplerBindGroupLayout;
-            bindGroupLayouts[1] = projectionMatrixBindGroupLayout;
-            
-            var pipelineLayoutDescriptor = new PipelineLayoutDescriptor
+                EntryPoint = "vs_main",
+                Buffers = vertexBufferLayout,
+            },
+            Primitive = new PrimitiveState
             {
-                BindGroupLayoutCount = 2,
-                BindGroupLayouts = bindGroupLayouts
-            };
-
-            using var pipelineLayout = device!.CreatePipelineLayout(in pipelineLayoutDescriptor);
-
-            var renderPipelineDescriptor = new RenderPipelineDescriptor
+                Topology = PrimitiveTopology.TriangleList,
+                StripIndexFormat = IndexFormat.Undefined,
+                FrontFace = FrontFace.Ccw,
+                CullMode = CullMode.None
+            },
+            Multisample = new MultisampleState
             {
-                Vertex = new VertexState
-                {
-                    Module = shader,
-                    EntryPoint = vs_main,
-                    Buffers = &vertexBufferLayout,
-                    BufferCount = 1
-                },
-                Primitive = new PrimitiveState
-                {
-                    Topology = PrimitiveTopology.TriangleList,
-                    StripIndexFormat = IndexFormat.Undefined,
-                    FrontFace = FrontFace.Ccw,
-                    CullMode = CullMode.None
-                },
-                Multisample = new MultisampleState
-                {
-                    Count = 1,
-                    Mask = ~0u,
-                    AlphaToCoverageEnabled = false
-                },
-                Fragment = &fragmentState,
-                DepthStencil = null,
-                Layout = pipelineLayout
-            };
+                Count = 1,
+                Mask = ~0u,
+                AlphaToCoverageEnabled = false
+            },
+            Fragment = fragmentState,
+            DepthStencil = null,
+            Layout = pipelineLayout
+        };
 
-            renderPipeline = device.CreateRenderPipeline(in renderPipelineDescriptor);
-        }
+        renderPipeline = device.CreateRenderPipeline(in renderPipelineDescriptor);
     }
 
     private unsafe void CreateSwapChain()
     {
-        surfaceConfiguration = new SurfaceConfiguration
+        var surfaceConfiguration = new SurfaceConfiguration
         {
             Usage = TextureUsage.RenderAttachment,
             Format = surfaceCapabilities.Formats[0],
@@ -591,21 +560,17 @@ internal class Demo : IDisposable
 
         using var surfaceTextureView = surfaceTexture.CreateView();
 
-        var colorAttachments = stackalloc RenderPassColorAttachment[1];
-        colorAttachments[0] = new RenderPassColorAttachment
-        {
-            ClearValue = new(1, 1, 1, 1),
-            //DepthSlice = 0,
-            LoadOp = LoadOp.Clear,
-            StoreOp = StoreOp.Store,
-            View = surfaceTextureView,
-            ResolveTarget = null,
-        };
-
         var renderPassDesc = new RenderPassDescriptor
         {
-            ColorAttachmentCount = 1,
-            ColorAttachments = colorAttachments,
+            ColorAttachments = [new RenderPassColorAttachment
+                                {
+                                    ClearValue = new(1, 1, 1, 1),
+                                    //DepthSlice = 0,
+                                    LoadOp = LoadOp.Clear,
+                                    StoreOp = StoreOp.Store,
+                                    View = surfaceTextureView,
+                                    ResolveTarget = null,
+                                }],
         };
 
         using var commandEncoder = device!.CreateCommandEncoder();
