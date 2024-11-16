@@ -1,8 +1,6 @@
 ﻿using System.Numerics;
-using System.Runtime.InteropServices;
 using Silk.NET.Input;
 using Silk.NET.Maths;
-using Silk.NET.WebGPU;
 using Silk.NET.Windowing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -114,10 +112,10 @@ internal class Demo : IDisposable
 
     private static unsafe void EC(ErrorType reason, string? message, void* userdata)
     {
-        
+
     }
 
-   
+
     private TextureFormat[] surfaceFormats;
 
     private void OnLoad()
@@ -278,26 +276,28 @@ internal class Demo : IDisposable
             { //Create bind group for sampler and textureview
                 var layoutDescriptor = new BindGroupLayoutDescriptor
                 {
-                    Entries = [ new BindGroupLayoutEntry
-                                {
-                                    Binding = 0,
-                                    Texture = new TextureBindingLayout
-                                    {
-                                        Multisampled = false,
-                                        SampleType = TextureSampleType.Float,
-                                        ViewDimension = TextureViewDimension.Dimension2D
-                                    },
-                                    Visibility = ShaderStage.Fragment
-                                },
-                                new BindGroupLayoutEntry
-                                {
-                                    Binding = 1,
-                                    Sampler = new SamplerBindingLayout
-                                    {
-                                        Type = SamplerBindingType.Filtering
-                                    },
-                                    Visibility = ShaderStage.Fragment
-                                }
+                    Entries = 
+                    [ 
+                        new BindGroupLayoutEntry
+                        {
+                            Binding = 0,
+                            Texture = new TextureBindingLayout
+                            {
+                                Multisampled = false,
+                                SampleType = TextureSampleType.Float,
+                                ViewDimension = TextureViewDimension.Dimension2D
+                            },
+                            Visibility = ShaderStage.Fragment
+                        },
+                        new BindGroupLayoutEntry
+                        {
+                            Binding = 1,
+                            Sampler = new SamplerBindingLayout
+                            {
+                                Type = SamplerBindingType.Filtering
+                            },
+                            Visibility = ShaderStage.Fragment
+                        }
                     ]
                 };
 
@@ -416,20 +416,21 @@ internal class Demo : IDisposable
     {
         var vertexBufferLayout = new VertexBufferLayout
         {
-            Attributes = [
-                    new VertexAttribute
-                    {
-                        Format = VertexFormat.Float32x2,
-                        Offset = 0,
-                        ShaderLocation = 0
-                    },
-                    new VertexAttribute
-                    {
-                        Format = VertexFormat.Float32x2,
-                        Offset = (ulong)sizeof(Vector2),
-                        ShaderLocation = 1
-                    }
-                ],
+            Attributes =
+            [
+                new VertexAttribute
+                {
+                    Format = VertexFormat.Float32x2,
+                    Offset = 0,
+                    ShaderLocation = 0
+                },
+                new VertexAttribute
+                {
+                    Format = VertexFormat.Float32x2,
+                    Offset = (ulong)sizeof(Vector2),
+                    ShaderLocation = 1
+                }
+            ],
             StepMode = VertexStepMode.Vertex,
             ArrayStride = (ulong)sizeof(Vertex)
         };
@@ -466,7 +467,11 @@ internal class Demo : IDisposable
 
         var pipelineLayoutDescriptor = new PipelineLayoutDescriptor
         {
-            BindGroupLayouts = [textureSamplerBindGroupLayout, projectionMatrixBindGroupLayout]
+            BindGroupLayouts = 
+            [
+                textureSamplerBindGroupLayout, 
+                projectionMatrixBindGroupLayout
+            ]
         };
 
         using var pipelineLayout = device!.CreatePipelineLayout(in pipelineLayoutDescriptor);
@@ -562,15 +567,18 @@ internal class Demo : IDisposable
 
         var renderPassDesc = new RenderPassDescriptor
         {
-            ColorAttachments = [new RenderPassColorAttachment
-                                {
-                                    ClearValue = new(1, 1, 1, 1),
-                                    //DepthSlice = 0,
-                                    LoadOp = LoadOp.Clear,
-                                    StoreOp = StoreOp.Store,
-                                    View = surfaceTextureView,
-                                    ResolveTarget = null,
-                                }],
+            ColorAttachments =
+            [
+                new RenderPassColorAttachment
+                {
+                    ClearValue = new(1, 1, 1, 1),
+                    //DepthSlice = 0,
+                    LoadOp = LoadOp.Clear,
+                    StoreOp = StoreOp.Store,
+                    View = surfaceTextureView,
+                    ResolveTarget = null,
+                }
+            ],
         };
 
         using var commandEncoder = device!.CreateCommandEncoder();

@@ -7,7 +7,6 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace SilkWrapped.ObjectModelTool.SyntaxTransformers;
 internal class PointerToSpan : CSharpSyntaxRewriter
 {
-    private readonly SyntaxToken refToken = ParseToken("ref ");
     public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)
     {
         bool makeRef = false;
@@ -36,7 +35,7 @@ internal class PointerToSpan : CSharpSyntaxRewriter
 
         if (makeRef)
         {
-            node = node.AddModifiers(refToken);
+            node = (StructDeclarationSyntax)MakeRefStruct.Instance.Visit(node);
         }
 
         return base.VisitStructDeclaration(node);

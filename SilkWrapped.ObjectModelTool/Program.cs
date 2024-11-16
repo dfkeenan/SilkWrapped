@@ -1,7 +1,8 @@
 ﻿global using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-using System.IO;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Text;
 using SilkWrapped.ObjectModelTool.SyntaxTransformers;
@@ -54,7 +55,7 @@ internal class Program
         var token = cts.Token;
 
 
-        if (projectPath is not { Exists: false })
+        if (projectPath is not { Exists: true })
         {
             Console.WriteLine("Valid project not supplied");
             return;
@@ -98,6 +99,7 @@ internal class Program
         {
             projectBackup = await File.ReadAllTextAsync(projectPath.FullName, token);
         }
+
 
         using var workspace = MSBuildWorkspace.Create();
         var project = await workspace.OpenProjectAsync(projectPath.FullName);
@@ -211,6 +213,41 @@ internal class Program
             if (whatIf)
             {
                 Console.WriteLine($"Will create '{fileName}'");
+            }
+        }
+
+        
+        compilation = await project.GetCompilationAsync(token);
+
+        var diagnostics = compilation!.GetDiagnostics(token)
+                                     .Where(d => d.Severity == DiagnosticSeverity.Error);
+
+        foreach (var diagnosticGroup in diagnostics.GroupBy(d => d.Id))
+        {
+            switch (diagnosticGroup.Key) 
+            {
+                case "CS8345": //ref field in non-ref struct
+                    //TODO: Doing this may cause more errors. would need to find references and fix them.
+                    foreach (var diagnostic in diagnosticGroup)
+                    {
+                        var source = diagnostic.Location.SourceTree;
+                        var document = project.GetDocument(source);
+                        var editor = await DocumentEditor.CreateAsync(document);
+
+                        SyntaxNode? nodeAtLocation = source!.GetRoot()?.FindNode(diagnostic.Location.SourceSpan);
+                        var structDeclaration = nodeAtLocation!.Ancestors().OfType<StructDeclarationSyntax>().FirstOrDefault();
+                        var updatedStructDeclaration = MakeRefStruct.Instance.Visit(structDeclaration);
+
+                        editor.ReplaceNode(structDeclaration, updatedStructDeclaration);
+
+                        var updatedDocument = editor.GetChangedDocument();
+                        project = updatedDocument.Project;
+                    }
+                    break;
+                case "CS9244": //ref struct in Nullable<T>
+
+                    break;
+
             }
         }
 
