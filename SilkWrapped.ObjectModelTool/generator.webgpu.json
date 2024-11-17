@@ -1,0 +1,15 @@
+{
+  "ProjectFilePath": "..\\SilkWrapped.WebGPU\\SilkWrapped.WebGPU.csproj",
+  "ApiTypeName": "Silk.NET.WebGPU.WebGPU",
+  "ApiOwnerTypeName": "Silk.NET.WebGPU.Instance",
+  "ConstructionMethodNamePattern": ".*(Create|Finish|Acquire).*",
+  "DisposalMethodNamePattern": ".*(Release).*",
+  "HandleTypeNameExclusionPattern": "(Pfn).*|.*Descriptor|InstanceFeatures|Future|SurfaceCapabilities",
+
+  "ObjectModelNameFormatString": "{0}Wrapper",
+  "OutputPath": "Generated\\",
+
+  "TransformGenerators": [
+    "ExtractObjectModelTypes"
+  ]
+}

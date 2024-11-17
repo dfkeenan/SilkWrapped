@@ -100,7 +100,7 @@ public static class CustomSyntaxFactory
         => InvokeDispose(IdentifierName(identifier), conditional);
 
     public static T WithModifiers<T>(this T memberDeclaration, params SyntaxKind[] modifiers) where T : MemberDeclarationSyntax
-        => (T)memberDeclaration.WithModifiers(new SyntaxTokenList(modifiers.Select(m => Token(m))));
+        => (T)memberDeclaration.WithModifiers(new SyntaxTokenList(modifiers.Select(m => Token(m).WithTrailingTrivia(ParseTrailingTrivia(" ")))));
 
     public static T AddMembers<T>(this T typeDeclaration, IEnumerable<MemberDeclarationSyntax> items) where T : TypeDeclarationSyntax
         => (T)typeDeclaration.WithMembers(typeDeclaration.Members.AddRange(items));

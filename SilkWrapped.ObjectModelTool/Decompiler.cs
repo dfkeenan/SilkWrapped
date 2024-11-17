@@ -7,17 +7,9 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace SilkWrapped.ObjectModelTool;
 
-internal record DecompiledTypeInfo(INamedTypeSymbol Symbol, SyntaxNode DecompiledSyntax);
-
 internal record DecompilerOptions()
 {
     public DecompilerSettings Settings { get; init; } = new DecompilerSettings();
-
-    public Func<ITypeSymbol, bool> Filter { get; init; } = (_ => true);
-
-    public ImmutableList<CSharpSyntaxRewriter> Rewriters { get; init; } = [];
-
-    public static DecompilerOptions Default { get; } = new DecompilerOptions();
 }
 
 internal class Decompiler
@@ -27,47 +19,27 @@ internal class Decompiler
     private readonly DecompilerOptions options;
     private CSharpDecompiler? decompiler;
 
-    public Decompiler(Compilation compilation, INamedTypeSymbol apiOwnerTypeSymbol, DecompilerOptions? options = null)
+    public Decompiler(Compilation compilation, INamedTypeSymbol apiTypeSymbol, DecompilerSettings? settings = null)
     {
-        this.containingAssembly = apiOwnerTypeSymbol.ContainingAssembly;
-        this.namedTypeSymbols = apiOwnerTypeSymbol.ContainingNamespace.GetTypeMembers();
-        this.options = options ?? DecompilerOptions.Default;
+        this.containingAssembly = apiTypeSymbol.ContainingAssembly;
+        this.namedTypeSymbols = apiTypeSymbol.ContainingNamespace.GetTypeMembers();
+
+        settings ??= new DecompilerSettings()
+        {
+            
+        };
 
         if (compilation.GetMetadataReference(containingAssembly) is PortableExecutableReference { FilePath: string assemblyFileName } reference)
         {
-
-
-            decompiler = new CSharpDecompiler(assemblyFileName, new AssemblyResolver(compilation), this.options.Settings);
-
-        }
-
-    }
-
-    public IEnumerable<DecompiledTypeInfo> GetTypes()
-    {
-        if (decompiler is null)
-            yield break;
-
-        foreach (var namedTypeSymbol in namedTypeSymbols)
-        {
-            if (!options.Filter(namedTypeSymbol)) continue;
-
-            SyntaxNode syntax = GetSyntax(namedTypeSymbol);
-
-            foreach (var rewriter in options.Rewriters)
-            {
-                syntax = rewriter.Visit(syntax);
-            }
-
-            yield return new DecompiledTypeInfo(namedTypeSymbol, syntax);
+            decompiler = new CSharpDecompiler(assemblyFileName, new AssemblyResolver(compilation), settings);
         }
     }
 
-    private SyntaxNode GetSyntax(INamedTypeSymbol namedTypeSymbol)
+    public SyntaxNode? GetSyntax(INamedTypeSymbol namedTypeSymbol)
     {
         var name = namedTypeSymbol.ToDisplayString();
         var source = decompiler!.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(name));
-        return SyntaxFactory.ParseSyntaxTree(source).GetRoot();
+        return string.IsNullOrEmpty(source) ? null : SyntaxFactory.ParseSyntaxTree(source).GetRoot();
     }
 
     private class AssemblyResolver : IAssemblyResolver

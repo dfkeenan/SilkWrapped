@@ -1,11 +1,13 @@
-﻿global using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-using System.Text;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Editing;
-using Microsoft.CodeAnalysis.MSBuild;
-using Microsoft.CodeAnalysis.Text;
-using SilkWrapped.ObjectModelTool.SyntaxTransformers;
+﻿global using Microsoft.CodeAnalysis;
+global using Microsoft.CodeAnalysis.CSharp.Syntax;
+global using Microsoft.CodeAnalysis.Editing;
+global using Microsoft.CodeAnalysis.MSBuild;
+global using Microsoft.CodeAnalysis.Text;
+global using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+global using static SilkWrapped.SourceGenerator.CustomSyntaxFactory;
+
+using System.Text.Json;
+using System.Reflection;
 
 namespace SilkWrapped.ObjectModelTool;
 
@@ -19,24 +21,10 @@ internal class Program
     /// <summary>
     /// Generates safe object model types for Silk.NET APIs
     /// </summary>
-    /// <param name="projectPath"></param>
-    /// <param name="outputPath"></param>
-    /// <param name="containerType"></param>
-    /// <param name="apiOwnerType"></param>
-    /// <param name="wrapperNameFormatString"></param>
-    /// <param name="constructionMethodNamePattern"></param>
-    /// <param name="disposalMethodNamePattern"></param>
-    /// <param name="handleTypeNameExclusionPattern"></param>
+    /// <param name="generatorConfig">Generator config file path</param>
     /// <param name="whatIf"></param>
     private static async Task Main(
-        FileInfo projectPath,
-        string containerType,
-        string apiOwnerType,
-        string outputPath = @".\Generated",
-        string wrapperNameFormatString = GeneratorOptions.DefaultWrapperNameFormatString,
-        string constructionMethodNamePattern = GeneratorOptions.DefaultConstructionMethodNamePattern,
-        string disposalMethodNamePattern = GeneratorOptions.DefaultDisposalMethodNamePattern,
-        string handleTypeNameExclusionPattern = GeneratorOptions.DefaultHandleTypeNameExclusionPattern,
+        FileInfo generatorConfig,
         bool whatIf = false
         )
     {
@@ -54,210 +42,246 @@ internal class Program
 
         var token = cts.Token;
 
-
-        if (projectPath is not { Exists: true })
+        try
         {
-            Console.WriteLine("Valid project not supplied");
-            return;
-        }
-
-        var outputDrectory = new DirectoryInfo(Path.Combine(projectPath!.Directory!.FullName, outputPath));
-
-        if (outputDrectory.Exists)
-        {
-            var files = outputDrectory.GetFiles("*.cs", new EnumerationOptions { RecurseSubdirectories = true });
-            foreach (var file in files)
+            if (generatorConfig is not { Exists: true })
             {
-                if (!whatIf)
-                {
-                    file.Delete();
-                }
-                else
-                {
-                    Console.WriteLine($"Will delete '{file.FullName}'");
-                }
+                Console.WriteLine("Invalid generator config file path");
+                return;
             }
-        }
-        else
-        {
-            if (!whatIf)
+            var configJson = await File.ReadAllTextAsync(generatorConfig.FullName);
+            var config = JsonSerializer.Deserialize<GeneratorConfig>(configJson)!;
+
+            var projecPath = Path.GetDirectoryName(generatorConfig.FullName)!;
+            projecPath = Path.Combine(projecPath, config.ProjectFilePath ?? "");
+            var projectDirectoryPath = Path.GetDirectoryName(projecPath);
+
+
+            if (!File.Exists(projecPath)) 
             {
-                outputDrectory.Create();
+                Console.WriteLine("Project '{projectPath}' does not exist.");
+                return;
+            }
+
+            var outputDrectory = new DirectoryInfo(Path.Combine(projectDirectoryPath!, config.OutputPath ?? ""));
+
+            if (outputDrectory.Exists)
+            {
+                var files = outputDrectory.GetFiles("*.cs", new EnumerationOptions { RecurseSubdirectories = true });
+                foreach (var file in files)
+                {
+                    if (!whatIf)
+                    {
+                        file.Delete();
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Will delete '{file.FullName}'");
+                    }
+                }
             }
             else
             {
-                Console.WriteLine($"Will create directory '{outputDrectory.FullName}'");
-            }
-        }
-
-        Console.WriteLine(new string('-', 80));
-
-        //HACK: Calling AddDocument() on a SDK-Style Project Adds a Compile Element
-        // https://github.com/dotnet/roslyn/issues/36781
-        string? projectBackup = null;
-        if (!whatIf)
-        {
-            projectBackup = await File.ReadAllTextAsync(projectPath.FullName, token);
-        }
-
-
-        using var workspace = MSBuildWorkspace.Create();
-        var project = await workspace.OpenProjectAsync(projectPath.FullName);
-        var compilation = await project.GetCompilationAsync(token);
-
-        if (compilation is null)
-        {
-            Console.WriteLine("Failed to get project compilation");
-            return;
-        }
-
-        var containerTypeSymbol = compilation.Assembly.GetTypeByMetadataName(containerType);
-
-        if (containerTypeSymbol is null)
-        {
-            Console.WriteLine($"Failed to get API container type '{containerType}'");
-            return;
-        }
-
-        var apiOwnerTypeSymbol = compilation.GetTypeByMetadataName(apiOwnerType);
-
-        if (apiOwnerTypeSymbol is null)
-        {
-            Console.WriteLine($"Failed to get API owner type '{apiOwnerType}'");
-            return;
-        }
-
-        var options = new GeneratorOptions
-        {
-            WrapperNameFormatString = wrapperNameFormatString,
-            ConstructionMethodNamePattern = constructionMethodNamePattern,
-            DisposalMethodNamePattern = disposalMethodNamePattern,
-            HandleTypeNameExclusionPattern = handleTypeNameExclusionPattern,
-        };
-
-        var objectGenerator = new ObjectModelGenerator(containerTypeSymbol, apiOwnerTypeSymbol, options);
-        objectGenerator.CollectTypeInformation(token);
-
-        var decompilerOptions = DecompilerOptions.Default with
-        {
-            Settings = new()
-            {
-
-            },
-
-            Filter = (ts) =>
-            {
-                switch (ts.TypeKind)
+                if (!whatIf)
                 {
-                    case TypeKind.Enum:
-                        break;
-                    case TypeKind.Struct:
-                        if (ts.Name.StartsWith("Pfn")) return false;
-                        if (ts.Name.StartsWith("ShaderModule")) return false;
-                        if (ts.Name.StartsWith("ChainedStruct")) return false;
-                        break;
-                    default:
-                        return false;
+                    outputDrectory.Create();
                 }
-
-                return !objectGenerator.IsHandleType(ts, true);
-            },
-
-            Rewriters =
-            [
-                new ReplaceNamespace(apiOwnerTypeSymbol.ContainingNamespace.ToDisplayString(), containerTypeSymbol.ContainingNamespace.ToDisplayString()),
-                new RemoveAttributes("NativeName"),
-                new BytePointerToString("Label", "Key"),
-                new RemoveChainingStruct(),
-                new TypeReplacer(objectGenerator.GetHandleTypeMap(true)),
-                new PointerToSpan(),
-                new MakeStructPartial(),
-                new PointerToNullableType()
-            ]
-        };
-
-        var decompiler = new Decompiler(compilation, apiOwnerTypeSymbol, decompilerOptions);
-
-        foreach (var item in decompiler.GetTypes())
-        {
-            SyntaxNode syntax = item.DecompiledSyntax;
-
-            string subDirectory = item.Symbol.TypeKind switch
-            {
-                TypeKind.Struct => nameof(TypeKind.Struct),
-                TypeKind tk => tk.ToString(),
-            };
-
-            var fileName = Path.Combine(outputDrectory.FullName, subDirectory, $"{item.Symbol.Name}.cs");
-
-            string directory = Path.Combine(outputDrectory.FullName, subDirectory);
-            Directory.CreateDirectory(directory);
-            var document = project.AddDocument(fileName, syntax.GetText());
-
-            project = document.Project;
-
-
-            if (whatIf)
-            {
-                Console.WriteLine($"Will create '{fileName}'");
+                else
+                {
+                    Console.WriteLine($"Will create directory '{outputDrectory.FullName}'");
+                }
             }
-        }
 
-        Console.WriteLine(new string('-', 80));
-
-        foreach ((string Name, string Source) in objectGenerator.GetSources(token))
-        {
-            var fileName = Path.Combine(outputDrectory.FullName, $"{Name}.cs");
-            var document = project.AddDocument(fileName, SourceText.From(Source));
-            project = document.Project;
-            if (whatIf)
-            {
-                Console.WriteLine($"Will create '{fileName}'");
-            }
-        }
-
-        
-        compilation = await project.GetCompilationAsync(token);
-
-        var diagnostics = compilation!.GetDiagnostics(token)
-                                     .Where(d => d.Severity == DiagnosticSeverity.Error);
-
-        foreach (var diagnosticGroup in diagnostics.GroupBy(d => d.Id))
-        {
-            switch (diagnosticGroup.Key) 
-            {
-                case "CS8345": //ref field in non-ref struct
-                    //TODO: Doing this may cause more errors. would need to find references and fix them.
-                    foreach (var diagnostic in diagnosticGroup)
-                    {
-                        var source = diagnostic.Location.SourceTree;
-                        var document = project.GetDocument(source);
-                        var editor = await DocumentEditor.CreateAsync(document);
-
-                        SyntaxNode? nodeAtLocation = source!.GetRoot()?.FindNode(diagnostic.Location.SourceSpan);
-                        var structDeclaration = nodeAtLocation!.Ancestors().OfType<StructDeclarationSyntax>().FirstOrDefault();
-                        var updatedStructDeclaration = MakeRefStruct.Instance.Visit(structDeclaration);
-
-                        editor.ReplaceNode(structDeclaration, updatedStructDeclaration);
-
-                        var updatedDocument = editor.GetChangedDocument();
-                        project = updatedDocument.Project;
-                    }
-                    break;
-                case "CS9244": //ref struct in Nullable<T>
-
-                    break;
-
-            }
-        }
-
-        if (!whatIf)
-        {
-            workspace.TryApplyChanges(project.Solution);
+            Console.WriteLine(new string('-', 80));
 
             //HACK: Calling AddDocument() on a SDK-Style Project Adds a Compile Element
             // https://github.com/dotnet/roslyn/issues/36781
-            await File.WriteAllTextAsync(projectPath.FullName, projectBackup, Encoding.UTF8, token);
+            byte[]? projectBackup = null;
+            if (!whatIf)
+            {
+                projectBackup = await File.ReadAllBytesAsync(projecPath, token);
+            }
+
+
+            using var workspace = MSBuildWorkspace.Create();
+            var project = await workspace.OpenProjectAsync(projecPath);
+            var compilation = await project.GetCompilationAsync(token);
+
+            if (compilation is null)
+            {
+                Console.WriteLine("Failed to get project compilation");
+                return;
+            }
+
+            if (config.ApiTypeName is null or [] || compilation.GetTypeByMetadataName(config.ApiTypeName) is not INamedTypeSymbol apiTypeSymbol)
+            {
+                Console.WriteLine($"Failed to get API type '{config.ApiTypeName}'");
+                return;
+            }
+
+            if (config.ApiOwnerTypeName is null or [] || compilation.GetTypeByMetadataName(config.ApiOwnerTypeName) is not INamedTypeSymbol apiOwnerTypeSymbol)
+            {
+                Console.WriteLine($"Failed to get API owner type '{config.ApiTypeName}'");
+                return;
+            }
+
+            var generatorContext = new GeneratorTransformContext(config, project, apiTypeSymbol, apiOwnerTypeSymbol);
+
+            var assembly = Assembly.GetExecutingAssembly();
+            var types = assembly.GetTypes()
+                                .Where(t => t.IsAssignableTo(typeof(GeneratorTransformBase)) && !t.IsAbstract && t.GetConstructor(Type.EmptyTypes) is not null)
+                                .ToDictionary(t => t.Name);
+
+
+            foreach (var transformerName in config.TransformGenerators)
+            {
+                if (types.TryGetValue(transformerName, out var generatorType))
+                {
+                    Console.WriteLine($"Executing '{transformerName}'");
+                    var transformer = Activator.CreateInstance(generatorType) as GeneratorTransformBase; 
+                    await transformer!.TransformAsync(generatorContext, token);
+                }
+            }
+
+
+            if (!whatIf)
+            {
+                workspace.TryApplyChanges(generatorContext.Project.Solution);
+
+                //HACK: Calling AddDocument() on a SDK-Style Project Adds a Compile Element
+                // https://github.com/dotnet/roslyn/issues/36781
+                await File.WriteAllBytesAsync(projecPath, projectBackup!, token);
+            }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Something went wrong!");
+            Console.WriteLine(ex.Message);
+        }
+
+        //var objectGenerator = new ObjectModelGenerator(containerTypeSymbol, apiOwnerTypeSymbol, options);
+        //objectGenerator.CollectTypeInformation(token);
+
+        //var decompilerOptions = DecompilerOptions.Default with
+        //{
+        //    Settings = new()
+        //    {
+
+        //    },
+
+        //    Filter = (ts) =>
+        //    {
+        //        switch (ts.TypeKind)
+        //        {
+        //            case TypeKind.Enum:
+        //                break;
+        //            case TypeKind.Struct:
+        //                if (ts.Name.StartsWith("Pfn")) return false;
+        //                if (ts.Name.StartsWith("ShaderModule")) return false;
+        //                if (ts.Name.StartsWith("ChainedStruct")) return false;
+        //                break;
+        //            default:
+        //                return false;
+        //        }
+
+        //        return !objectGenerator.IsHandleType(ts, true);
+        //    },
+
+        //    Rewriters =
+        //    [
+        //        new ReplaceNamespace(apiOwnerTypeSymbol.ContainingNamespace.ToDisplayString(), containerTypeSymbol.ContainingNamespace.ToDisplayString()),
+        //        new RemoveAttributes("NativeName"),
+        //        new BytePointerToString("Label", "Key"),
+        //        new RemoveChainingStruct(),
+        //        new TypeReplacer(objectGenerator.GetHandleTypeMap(true)),
+        //        new PointerToSpan(),
+        //        new MakeStructPartial(),
+        //        new PointerToNullableType()
+        //    ]
+        //};
+
+        //var decompiler = new Decompiler(compilation, apiOwnerTypeSymbol, decompilerOptions);
+
+        //foreach (var item in decompiler.GetTypes())
+        //{
+        //    SyntaxNode syntax = item.DecompiledSyntax;
+
+        //    string subDirectory = item.Symbol.TypeKind switch
+        //    {
+        //        TypeKind.Struct => nameof(TypeKind.Struct),
+        //        TypeKind tk => tk.ToString(),
+        //    };
+
+        //    var fileName = Path.Combine(outputDrectory.FullName, subDirectory, $"{item.Symbol.Name}.cs");
+
+        //    string directory = Path.Combine(outputDrectory.FullName, subDirectory);
+        //    Directory.CreateDirectory(directory);
+        //    var document = project.AddDocument(fileName, syntax.GetText());
+
+        //    project = document.Project;
+
+
+        //    if (whatIf)
+        //    {
+        //        Console.WriteLine($"Will create '{fileName}'");
+        //    }
+        //}
+
+        //Console.WriteLine(new string('-', 80));
+
+        //foreach ((string Name, string Source) in objectGenerator.GetSources(token))
+        //{
+        //    var fileName = Path.Combine(outputDrectory.FullName, $"{Name}.cs");
+        //    var document = project.AddDocument(fileName, SourceText.From(Source));
+        //    project = document.Project;
+        //    if (whatIf)
+        //    {
+        //        Console.WriteLine($"Will create '{fileName}'");
+        //    }
+        //}
+
+
+        //compilation = await project.GetCompilationAsync(token);
+
+        //var diagnostics = compilation!.GetDiagnostics(token)
+        //                             .Where(d => d.Severity == DiagnosticSeverity.Error);
+
+        //foreach (var diagnosticGroup in diagnostics.GroupBy(d => d.Id))
+        //{
+        //    switch (diagnosticGroup.Key) 
+        //    {
+        //        case "CS8345": //ref field in non-ref struct
+        //            //TODO: Doing this may cause more errors. would need to find references and fix them.
+        //            foreach (var diagnostic in diagnosticGroup)
+        //            {
+        //                var source = diagnostic.Location.SourceTree;
+        //                var document = project.GetDocument(source);
+        //                var editor = await DocumentEditor.CreateAsync(document);
+
+        //                SyntaxNode? nodeAtLocation = source!.GetRoot()?.FindNode(diagnostic.Location.SourceSpan);
+        //                var structDeclaration = nodeAtLocation!.Ancestors().OfType<StructDeclarationSyntax>().FirstOrDefault();
+        //                var updatedStructDeclaration = MakeRefStruct.Instance.Visit(structDeclaration);
+
+        //                editor.ReplaceNode(structDeclaration, updatedStructDeclaration);
+
+        //                var updatedDocument = editor.GetChangedDocument();
+        //                project = updatedDocument.Project;
+        //            }
+        //            break;
+        //        case "CS9244": //ref struct in Nullable<T>
+
+        //            break;
+
+        //    }
+        //}
+
+        //if (!whatIf)
+        //{
+        //    workspace.TryApplyChanges(project.Solution);
+
+        //    //HACK: Calling AddDocument() on a SDK-Style Project Adds a Compile Element
+        //    // https://github.com/dotnet/roslyn/issues/36781
+        //    await File.WriteAllBytesAsync(projectPath.FullName, projectBackup!, token);
+        //}
     }
 }
