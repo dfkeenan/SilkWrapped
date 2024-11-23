@@ -87,17 +87,14 @@ public static class CustomSyntaxFactory
 
     public static ClassDeclarationSyntax AddDispose(this ClassDeclarationSyntax classDeclaration, Func<BlockSyntax, BlockSyntax> blockBuilder)
     {
-        var dispose = MethodDeclaration(PredefinedType(Token(SyntaxKind.VoidKeyword)), Identifier("Dispose"))
+        var dispose = MethodDeclaration(PredefinedType(Token(SyntaxKind.VoidKeyword)), Identifier(" Dispose"))
                             .WithModifiers(SyntaxKind.PublicKeyword)
                             .WithBody(blockBuilder(Block()));
 
-        return classDeclaration.AddBaseListTypes(Disposable).AddMembers(dispose);
+        return classDeclaration.AddBaseListTypes(Disposable).AddMembers(dispose).NormalizeWhitespace();
     }
 
-    private static readonly SimpleBaseTypeSyntax Disposable = SimpleBaseType(
-                        QualifiedName(
-                            IdentifierName("System"),
-                            IdentifierName("IDisposable")));
+    private static readonly SimpleBaseTypeSyntax Disposable = SimpleBaseType(ParseTypeName(" System.IDisposable "));
 
     public static ExpressionStatementSyntax InvokeDispose(ExpressionSyntax expression, bool conditional = false)
         => conditional ?

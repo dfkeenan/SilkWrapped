@@ -7,7 +7,7 @@ public unsafe partial class AdapterWrapper
         var resetEvent = new ManualResetEvent(false);
 
         DeviceWrapper? device = null;
-        Exception? exception = null; 
+        Exception? exception = null;
 
         RequestDevice(in descriptor, (arg0, arg1, arg2, arg3) =>
         {
@@ -26,7 +26,7 @@ public unsafe partial class AdapterWrapper
 
         resetEvent.WaitOne();
 
-        if(exception != null)
+        if (exception != null)
         {
             throw exception;
         }

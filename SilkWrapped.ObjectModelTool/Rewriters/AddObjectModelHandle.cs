@@ -16,7 +16,12 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
 
         var handleProperty = PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword);
 
-        node = node.WithMembers(node.Members.Insert(0, handleProperty));
+        var members = node.Members.Insert(0, handleProperty);
+
+        var castOperator = ParseMemberDeclaration($"public static implicit operator {handleType.ToString()}({node.Identifier.Text} obj) => obj.Handle;")!;
+        members = members.Add(castOperator);
+
+        node = node.WithMembers(members);
 
         return node;
     }

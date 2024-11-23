@@ -25,7 +25,6 @@ internal class Demo : IDisposable
     private IKeyboard? keyboard;
     private InstanceWrapper? instance;
     private SurfaceWrapper? surface;
-    private SurfaceCapabilities surfaceCapabilities;
     private AdapterWrapper? adapter;
     private DeviceWrapper? device;
 
@@ -131,8 +130,11 @@ internal class Demo : IDisposable
 
         device = adapter.RequestDevice(in d);
 
-
+        SurfaceCapabilities surfaceCapabilities = default;
         surface.GetCapabilities(adapter, ref surfaceCapabilities);
+        surfaceFormats = surfaceCapabilities.Formats.ToArray();
+
+
         queue = device.GetQueue();
 
         CreateSwapChain();
@@ -176,7 +178,7 @@ internal class Demo : IDisposable
 
         unsafe
         {
-            surfaceFormats = surfaceCapabilities.Formats.ToArray();
+
 
             var dummy = 0;
             device.SetUncapturedErrorCallback(EC, ref dummy);
@@ -254,7 +256,7 @@ internal class Demo : IDisposable
 
                 using var commandBuffer = commandEncoder.Finish();
 
-                queue.Submit(1, commandBuffer);
+                queue.Submit([commandBuffer]);
             } //Create texture and texture view
 
 
@@ -276,8 +278,8 @@ internal class Demo : IDisposable
             { //Create bind group for sampler and textureview
                 var layoutDescriptor = new BindGroupLayoutDescriptor
                 {
-                    Entries = 
-                    [ 
+                    Entries =
+                    [
                         new BindGroupLayoutEntry
                         {
                             Binding = 0,
@@ -461,15 +463,15 @@ internal class Demo : IDisposable
         var fragmentState = new FragmentState
         {
             Module = shader,
-            Targets = colorTargetState,
+            Targets = [colorTargetState],
             EntryPoint = "fs_main"
         };
 
         var pipelineLayoutDescriptor = new PipelineLayoutDescriptor
         {
-            BindGroupLayouts = 
+            BindGroupLayouts =
             [
-                textureSamplerBindGroupLayout, 
+                textureSamplerBindGroupLayout,
                 projectionMatrixBindGroupLayout
             ]
         };
@@ -482,7 +484,7 @@ internal class Demo : IDisposable
             {
                 Module = shader,
                 EntryPoint = "vs_main",
-                Buffers = vertexBufferLayout,
+                Buffers = [vertexBufferLayout],
             },
             Primitive = new PrimitiveState
             {
@@ -531,7 +533,7 @@ internal class Demo : IDisposable
 
         using var commandBuffer = commandEncoder.Finish();
 
-        queue.Submit(1, commandBuffer);
+        queue.Submit([commandBuffer]);
     }
 
     private void OnUpdate(double obj)
@@ -592,7 +594,7 @@ internal class Demo : IDisposable
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
-        queue!.Submit(1, commandBuffer);
+        queue!.Submit([commandBuffer]);
         surface.Present();
         window!.SwapBuffers();
     }

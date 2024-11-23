@@ -1,6 +1,4 @@
-﻿using Silk.NET.WebGPU;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public unsafe partial class InstanceWrapper
 {
     public AdapterWrapper RequestAdapter(SurfaceWrapper surface, PowerPreference powerPreference = PowerPreference.HighPerformance)

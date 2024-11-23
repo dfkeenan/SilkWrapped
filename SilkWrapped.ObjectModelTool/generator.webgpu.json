@@ -19,7 +19,7 @@
         },
         {
           "$type": "RemoveMethods",
-          "Names": [ "GetProcAddress" ]
+          "Names": [ "GetProcAddress", "DeviceCreateShaderModule" ]
         },
         {
           "$type": "AddObjectModelHandle"
@@ -44,6 +44,9 @@
         },
         {
           "$type": "PointerToSpan"
+        },
+        {
+          "$type": "AddObjectModelDispose"
         }
       ]
     },
@@ -88,6 +91,42 @@
           "$type": "PointerToNullableType"
         }
       ]
+    },
+    {
+      "$type": "ExtractTypes",
+      "TypeKind": "Delegate",
+      "OutputPath": "Generated\\Delegates"
+    },
+    {
+      "$type": "ExtractTypes",
+      "TypeKind": "Struct",
+      "IncludeTypesPattern": "Pfn.*",
+      "OutputPath": "Generated\\Delegates"
+      //"Rewriters": [
+      //  {
+      //    "$type": "RemoveAttributes",
+      //    "Names": [ "NativeName" ]
+      //  },
+      //  {
+      //    "$type": "BytePointerToString",
+      //    "Names": [ "Label", "Key" ]
+      //  },
+      //  {
+      //    "$type": "RemoveChainingStruct"
+      //  },
+      //  {
+      //    "$type": "ObjectModelTypeReplacer"
+      //  },
+      //  {
+      //    "$type": "PointerToSpan"
+      //  },
+      //  {
+      //    "$type": "MakeStructPartial"
+      //  },
+      //  {
+      //    "$type": "PointerToNullableType"
+      //  }
+      //]
     }
   ]
 }

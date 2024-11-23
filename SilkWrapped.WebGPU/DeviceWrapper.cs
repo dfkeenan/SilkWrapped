@@ -17,16 +17,11 @@ public unsafe partial class DeviceWrapper
             NextInChain = (Silk.NET.WebGPU.ChainedStruct*)(&wgslDescriptor),
         };
 
-        var result = CreateShaderModule(in shaderModuleDescriptor);
+        var result = Api.DeviceCreateShaderModule(Handle, in shaderModuleDescriptor);
 
         SilkMarshal.FreeString((nint)wgslDescriptor.Code);
 
-        return result;
-    }
-
-    partial void TextureWrapperCreated(TextureWrapper value)
-    {
-
+        return new ShaderModuleWrapper(Api, result);
     }
 
     partial void Disposing()

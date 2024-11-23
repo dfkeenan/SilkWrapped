@@ -9,6 +9,7 @@ internal class ExtractTypes : GeneratorTransformBase
     [JsonConverter(typeof(JsonStringEnumConverter<TypeKind>))]
     public TypeKind TypeKind { get; set; }
     public string? ExcludeTypesPattern { get; set; }
+    public string? IncludeTypesPattern { get; set; }
     public string? OutputPath { get; set; }
 
     public List<CSharpSyntaxRewriter> Rewriters { get; set; } = [];
@@ -29,6 +30,13 @@ internal class ExtractTypes : GeneratorTransformBase
             var regex = new Regex(ExcludeTypesPattern, RegexOptions.Compiled);
 
             typeSymbols = typeSymbols.Where(ts => !regex.IsMatch(ts.Name));
+        }
+
+        if (!string.IsNullOrEmpty(IncludeTypesPattern))
+        {
+            var regex = new Regex(IncludeTypesPattern, RegexOptions.Compiled);
+
+            typeSymbols = typeSymbols.Where(ts => regex.IsMatch(ts.Name));
         }
 
         var namespaceReplacer
