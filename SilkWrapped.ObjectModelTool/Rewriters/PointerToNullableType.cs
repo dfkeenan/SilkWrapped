@@ -1,15 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace SilkWrapped.ObjectModelTool.SyntaxTransformers;
+namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class PointerToNullableType : CSharpSyntaxRewriter
 {
     private readonly HashSet<string> parameterNames = new HashSet<string>();
@@ -57,11 +49,12 @@ internal class PointerToNullableType : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitIfStatement(IfStatementSyntax node)
     {
-        if (node.Condition 
-            is BinaryExpressionSyntax 
-            { 
+        if (node.Condition
+            is BinaryExpressionSyntax
+            {
                 OperatorToken.Text: "!=",
-                Left: IdentifierNameSyntax { Identifier.Text : string name }} && parameterNames.Contains(name))
+                Left: IdentifierNameSyntax { Identifier.Text: string name }
+            } && parameterNames.Contains(name))
         {
             node = node.WithCondition(ParseExpression($"{name}.HasValue"));
         }
@@ -71,7 +64,7 @@ internal class PointerToNullableType : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitAssignmentExpression(AssignmentExpressionSyntax node)
     {
-        if(node.Right is IdentifierNameSyntax { Identifier.Text: string name } && parameterNames.Contains(name))
+        if (node.Right is IdentifierNameSyntax { Identifier.Text: string name } && parameterNames.Contains(name))
         {
             return node.WithRight(ParseExpression($"{name}.Value"));
         }

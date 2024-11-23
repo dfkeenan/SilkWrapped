@@ -1,11 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SilkWrapped.SourceGenerator;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-using static SilkWrapped.SourceGenerator.CustomSyntaxFactory;
 
 namespace SilkWrapped.ObjectModelTool;
 

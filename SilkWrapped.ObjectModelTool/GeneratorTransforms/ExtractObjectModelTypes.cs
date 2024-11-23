@@ -1,29 +1,33 @@
 ﻿using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
+using SilkWrapped.ObjectModelTool.Rewriters;
 
 namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;
 internal class ExtractObjectModelTypes : GeneratorTransformBase
 {
-    public override Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
+    public List<CSharpSyntaxRewriter> Rewriters { get; set; } = [];
+    public List<CSharpSyntaxRewriter> PostRewriters { get; set; } = [];
+
+    public override async Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
     {
-        if (context.Decompiler is not Decompiler decompiler) return Task.CompletedTask;
-        if (decompiler.GetSyntax(context.ApiTypeSymbol) is not CompilationUnitSyntax apiSyntax) return Task.CompletedTask;
+        if (context.Decompiler is not Decompiler decompiler) return;
+        if (decompiler.GetSyntax(context.ApiTypeSymbol) is not CompilationUnitSyntax apiSyntax) return;
 
         var apiMethods = apiSyntax.DescendantNodes()
                                   .OfType<MethodDeclarationSyntax>()
                                   .Select(m => m.WithBody(Block()));
 
-        var handleTypeNameExclusionPattern =  new Regex(context.Config.HandleTypeNameExclusionPattern, RegexOptions.Compiled);
+        var handleTypeNameExclusionPattern = new Regex(context.Generator.HandleTypeNameExclusionPattern, RegexOptions.Compiled);
 
         var methodGroups = new Dictionary<string, List<MethodDeclarationSyntax>>();
 
 
-        foreach (var method in apiMethods) 
+        foreach (var method in apiMethods)
         {
-            if (cancellationToken.IsCancellationRequested) return Task.FromCanceled(cancellationToken);
-            if (method is not  { ParameterList.Parameters: [var firstParameter, ..] }) continue;
+            if (cancellationToken.IsCancellationRequested) return;
+            if (method is not { ParameterList.Parameters: [var firstParameter, ..] }) continue;
 
-            if(TypeName(firstParameter.Type) is string name)
+            if (TypeName(firstParameter.Type) is string name)
             {
                 if (handleTypeNameExclusionPattern.IsMatch(name)) continue;
 
@@ -40,7 +44,7 @@ internal class ExtractObjectModelTypes : GeneratorTransformBase
 
         foreach (var (name, methods) in methodGroups)
         {
-            string className = string.Format(context.Config.ObjectModelNameFormatString!, name);
+            string className = string.Format(context.Generator.ObjectModelNameFormatString!, name);
             var classDec = ClassDeclaration(className
                                 , SyntaxKind.PublicKeyword, SyntaxKind.UnsafeKeyword, SyntaxKind.PartialKeyword)
                                 .AddMembers(methods);
@@ -48,11 +52,50 @@ internal class ExtractObjectModelTypes : GeneratorTransformBase
             var namespaceDec = FileScopedNamespaceDeclaration(ParseName(context.Project.DefaultNamespace!))
                 .AddMembers(classDec);
 
-            var fileName = Path.Combine(context.Config.OutputPath, $"{className}.cs");
-            var document = context.Project.AddDocument(fileName, apiSyntax.WithMembers([namespaceDec]).NormalizeWhitespace().GetText());
+            SyntaxNode typeSyntax = apiSyntax.WithMembers([namespaceDec]);
+
+            foreach (var rewriter in Rewriters)
+            {
+                typeSyntax = rewriter switch
+                {
+                    ContextAwareCSharpSyntaxRewriter contextRewriter => contextRewriter.Visit(typeSyntax, context),
+                    _ => rewriter.Visit(typeSyntax)
+                };
+            }
+
+            var fileName = Path.Combine(context.Generator.OutputPath, $"{className}.cs");
+            var document = context.Project.AddDocument(fileName, typeSyntax.NormalizeWhitespace().GetText());
             context.Project = document.Project;
+
+            var type = ParseTypeName(className);
+            var sourceType = methods[0].ParameterList.Parameters[0].Type;
+            var qualifiedSourceType = ParseTypeName($"{context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{sourceType!.ToFullString()}");
+
+            context.Items.Add(new GeneratorItem(className, type, sourceType, qualifiedSourceType, document.Id, true));
         }
 
-        return Task.CompletedTask;
+        foreach (var item in context.Items.Where(i => i.IsObjectModel))
+        {
+            var document = context.Project.GetDocument(item.DocumentId)!;
+            var syntaxTree = await document.GetSyntaxTreeAsync(cancellationToken);
+
+            if (syntaxTree is null) continue;
+
+            var typeSyntax = syntaxTree.GetRoot();
+
+            foreach (var rewriter in PostRewriters)
+            {
+                typeSyntax = rewriter switch
+                {
+                    ContextAwareCSharpSyntaxRewriter contextRewriter => contextRewriter.Visit(typeSyntax, context),
+                    _ => rewriter.Visit(typeSyntax)
+                };
+            }
+
+            document = document.WithSyntaxRoot(typeSyntax);
+            context.Project = document.Project;
+        }
     }
+
+
 }

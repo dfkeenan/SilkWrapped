@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 
 namespace SilkWrapped.SourceGenerator;
 public class MethodSymbolGroupCollection
@@ -10,7 +7,7 @@ public class MethodSymbolGroupCollection
 
     public void Add(ITypeSymbol typeSymbol, IMethodSymbol methodSymbol)
     {
-        if(members.TryGetValue(typeSymbol, out var list))
+        if (members.TryGetValue(typeSymbol, out var list))
         {
             list.Add(methodSymbol);
         }
@@ -22,7 +19,7 @@ public class MethodSymbolGroupCollection
         return members.ContainsKey(returnType);
     }
 
-    public IEnumerable<IMethodSymbol> this[ITypeSymbol typeSymbol] 
+    public IEnumerable<IMethodSymbol> this[ITypeSymbol typeSymbol]
     {
         get
         {

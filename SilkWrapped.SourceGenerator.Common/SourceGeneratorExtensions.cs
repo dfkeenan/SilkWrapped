@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace SilkWrapped.SourceGenerator;
@@ -13,8 +9,8 @@ public static class SourceGeneratorExtensions
         this IncrementalGeneratorInitializationContext context,
         Func<AnalyzerConfigOptions, T> selector)
     {
-        return context.AnalyzerConfigOptionsProvider.Select((o,ct) => selector(o.GlobalOptions));
-        
+        return context.AnalyzerConfigOptionsProvider.Select((o, ct) => selector(o.GlobalOptions));
+
     }
 
     public static string GetMSBuildProperty(
@@ -22,7 +18,7 @@ public static class SourceGeneratorExtensions
         string name,
         string defaultValue = "")
     {
-        return analyzerConfigOptions.TryGetValue($"build_property.{name}", out var value) 
+        return analyzerConfigOptions.TryGetValue($"build_property.{name}", out var value)
             && !string.IsNullOrEmpty(value) ? value : defaultValue;
 
     }

@@ -2,7 +2,6 @@
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.Metadata;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace SilkWrapped.ObjectModelTool;
@@ -26,7 +25,7 @@ internal class Decompiler
 
         settings ??= new DecompilerSettings()
         {
-            
+
         };
 
         if (compilation.GetMetadataReference(containingAssembly) is PortableExecutableReference { FilePath: string assemblyFileName } reference)

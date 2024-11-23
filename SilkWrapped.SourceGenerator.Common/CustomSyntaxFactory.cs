@@ -12,6 +12,20 @@ public static class CustomSyntaxFactory
 
     public static ClassDeclarationSyntax AddConstructor(this ClassDeclarationSyntax classDeclaration, params PropertyDeclarationSyntax[] properties)
     {
+        ConstructorDeclarationSyntax constructor = ConstructorDeclatation(classDeclaration, properties);
+
+        return classDeclaration.AddMembers(constructor);
+    }
+
+    public static ClassDeclarationSyntax InsertConstructor(this ClassDeclarationSyntax classDeclaration, int index, params PropertyDeclarationSyntax[] properties)
+    {
+        ConstructorDeclarationSyntax constructor = ConstructorDeclatation(classDeclaration, properties);
+
+        return classDeclaration.WithMembers(classDeclaration.Members.Insert(index, constructor));
+    }
+
+    private static ConstructorDeclarationSyntax ConstructorDeclatation(ClassDeclarationSyntax classDeclaration, PropertyDeclarationSyntax[] properties)
+    {
         var parameters = ParameterList([.. properties.Select(p => SyntaxFactory.Parameter(CamelCase(p.Identifier)).WithType(p.Type))]);
         var assignments = properties.Select(p => ExpressionStatement(
                 AssignmentExpression(
@@ -23,8 +37,7 @@ public static class CustomSyntaxFactory
                             .WithModifiers(SyntaxKind.PublicKeyword)
                             .WithParameterList(parameters)
                             .WithBody(Block(assignments));
-
-        return classDeclaration.AddMembers(constructor);
+        return constructor;
     }
 
     public static ClassDeclarationSyntax AddDefaultConstructor(this ClassDeclarationSyntax classDeclaration, Func<BlockSyntax, BlockSyntax> blockBuilder)
@@ -53,6 +66,11 @@ public static class CustomSyntaxFactory
     public static BlockSyntax AddStatements(this BlockSyntax block, IEnumerable<StatementSyntax> items)
         => block.WithStatements(block.Statements.AddRange(items));
 
+
+    public static PropertyDeclarationSyntax PropertyDeclaration(TypeSyntax typeSyntax, string identifier, params SyntaxKind[] modifiers)
+        => SyntaxFactory.PropertyDeclaration(typeSyntax, identifier)
+                .WithModifiers(modifiers)
+                .AddAccessorListAccessors(AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(Token(SyntaxKind.SemicolonToken)));
 
     public static PropertyDeclarationSyntax PropertyDeclaration(ITypeSymbol typeSymbol, string identifier, params SyntaxKind[] modifiers)
         => SyntaxFactory.PropertyDeclaration(TypeSyntax(typeSymbol), identifier)
@@ -257,4 +275,15 @@ public static class CustomSyntaxFactory
 
     public static SyntaxToken CamelCase(SyntaxToken value)
         => Identifier(CamelCase(value.Text));
+
+    public static string? TypeName(TypeSyntax? type)
+    {
+        if (type is IdentifierNameSyntax { Identifier.Text: string name }) return name;
+
+        if (type is PointerTypeSyntax pointerType) return TypeName(pointerType.ElementType);
+        if (type is NullableTypeSyntax nullableType) return TypeName(nullableType.ElementType);
+        if (type is QualifiedNameSyntax qualifiedType) return TypeName(qualifiedType.Right);
+
+        return null;
+    }
 }

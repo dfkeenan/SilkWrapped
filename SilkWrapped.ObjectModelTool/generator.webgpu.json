@@ -10,6 +10,84 @@
   "OutputPath": "Generated\\",
 
   "TransformGenerators": [
-    "ExtractObjectModelTypes"
+    {
+      "$type": "ExtractObjectModelTypes",
+      "Rewriters": [
+        {
+          "$type": "RemoveAttributes",
+          "Names": [ "NativeName", "NativeApi", "Flow", "RequiresLocation", "UnmanagedType" ]
+        },
+        {
+          "$type": "RemoveMethods",
+          "Names": [ "GetProcAddress" ]
+        },
+        {
+          "$type": "AddObjectModelHandle"
+        },
+        {
+          "$type": "AddObjectModelApi"
+        },
+        {
+          "$type": "AddObjectModelConstructor"
+        },
+        {
+          "$type": "SimplifyMethodSignature"
+        },
+        {
+          "$type": "RemoveMethodOverloads"
+        }
+      ],
+      "PostRewriters": [
+        {
+          "$type": "ObjectModelTypeReplacer",
+          "SkipConstructor": true
+        },
+        {
+          "$type": "PointerToSpan"
+        }
+      ]
+    },
+    {
+      "$type": "ExtractTypes",
+      "TypeKind": "Enum",
+      "OutputPath": "Generated\\Enums",
+      "Rewriters": [
+        {
+          "$type": "RemoveAttributes",
+          "Names": [ "NativeName" ]
+        }
+      ]
+    },
+    {
+      "$type": "ExtractTypes",
+      "TypeKind": "Struct",
+      "ExcludeTypesPattern": "Pfn.*|ShaderModule.*|ChainedStruct.*",
+      "OutputPath": "Generated\\Structs",
+      "Rewriters": [
+        {
+          "$type": "RemoveAttributes",
+          "Names": [ "NativeName" ]
+        },
+        {
+          "$type": "BytePointerToString",
+          "Names": [ "Label", "Key" ]
+        },
+        {
+          "$type": "RemoveChainingStruct"
+        },
+        {
+          "$type": "ObjectModelTypeReplacer"
+        },
+        {
+          "$type": "PointerToSpan"
+        },
+        {
+          "$type": "MakeStructPartial"
+        },
+        {
+          "$type": "PointerToNullableType"
+        }
+      ]
+    }
   ]
 }

@@ -1,9 +1,6 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+﻿using Microsoft.CodeAnalysis.CSharp;
 
-namespace SilkWrapped.ObjectModelTool.SyntaxTransformers;
+namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ReplaceNamespace(string from, string to) : CSharpSyntaxRewriter
 {
     private NameSyntax toName = ParseName(to);
@@ -19,7 +16,7 @@ internal class ReplaceNamespace(string from, string to) : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
     {
-        if(node.Name.ToFullString() == from)
+        if (node.Name.ToFullString() == from)
         {
             return node.WithName(toName);
         }

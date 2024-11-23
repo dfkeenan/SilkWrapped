@@ -1,14 +1,25 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace SilkWrapped.ObjectModelTool.SyntaxTransformers;
+namespace SilkWrapped.ObjectModelTool.Rewriters;
 
-internal class BytePointerToString(params string[] names) : CSharpSyntaxRewriter
+internal class BytePointerToString : CSharpSyntaxRewriter
 {
-    private readonly HashSet<string> names = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> names;
     private readonly TypeSyntax stringSyntax = ParseTypeName("string? ");
+
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public ISet<string> Names => names;
+    public BytePointerToString()
+    {
+        names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public BytePointerToString(params string[] names)
+    {
+        this.names = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+    }
+
     public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
     {
         if (node.Type is PointerTypeSyntax pointerType &&

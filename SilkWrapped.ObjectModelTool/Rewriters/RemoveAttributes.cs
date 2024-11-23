@@ -1,11 +1,24 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace SilkWrapped.ObjectModelTool.SyntaxTransformers;
-internal class RemoveAttributes(params string[] names) : CSharpSyntaxRewriter
+namespace SilkWrapped.ObjectModelTool.Rewriters;
+internal class RemoveAttributes : CSharpSyntaxRewriter
 {
-    private readonly HashSet<string> names = new HashSet<string>(names);
+    private readonly HashSet<string> names;
+
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public ISet<string> Names => names;
+
+    public RemoveAttributes(params string[] names)
+    {
+        this.names = [.. names];
+    }
+
+    public RemoveAttributes()
+    {
+        names = [];
+    }
+
     public override SyntaxNode? VisitAttribute(AttributeSyntax node)
     {
         if (names.Contains(node.Name.ToString()))
