@@ -455,7 +455,7 @@ internal class Demo : IDisposable
 
         var colorTargetState = new ColorTargetState
         {
-            Format = surfaceCapabilities.Formats[0],
+            Format = surfaceFormats[0],
             Blend = blendState,
             WriteMask = ColorWriteMask.All
         };
@@ -512,7 +512,7 @@ internal class Demo : IDisposable
         var surfaceConfiguration = new SurfaceConfiguration
         {
             Usage = TextureUsage.RenderAttachment,
-            Format = surfaceCapabilities.Formats[0],
+            Format = surfaceFormats[0],
             PresentMode = PresentMode.Fifo,
             Device = device,
             Width = (uint)window!.FramebufferSize.X,
