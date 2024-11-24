@@ -6,7 +6,6 @@ namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;
 internal class ExtractObjectModelTypes : GeneratorTransformBase
 {
     public List<CSharpSyntaxRewriter> Rewriters { get; set; } = [];
-    public List<CSharpSyntaxRewriter> PostRewriters { get; set; } = [];
 
     public override async Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
     {
@@ -74,27 +73,7 @@ internal class ExtractObjectModelTypes : GeneratorTransformBase
             context.Items.Add(new GeneratorItem(className, type, sourceType, qualifiedSourceType, document.Id, true));
         }
 
-        foreach (var item in context.Items.Where(i => i.IsObjectModel))
-        {
-            var document = context.Project.GetDocument(item.DocumentId)!;
-            var syntaxTree = await document.GetSyntaxTreeAsync(cancellationToken);
-
-            if (syntaxTree is null) continue;
-
-            var typeSyntax = syntaxTree.GetRoot();
-
-            foreach (var rewriter in PostRewriters)
-            {
-                typeSyntax = rewriter switch
-                {
-                    ContextAwareCSharpSyntaxRewriter contextRewriter => contextRewriter.Visit(typeSyntax, context),
-                    _ => rewriter.Visit(typeSyntax)
-                };
-            }
-
-            document = document.WithSyntaxRoot(typeSyntax);
-            context.Project = document.Project;
-        }
+        
     }
 
 

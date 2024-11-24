@@ -20,33 +20,6 @@
         {
           "$type": "RemoveMethods",
           "Names": [ "GetProcAddress", "DeviceCreateShaderModule" ]
-        },
-        {
-          "$type": "AddObjectModelHandle"
-        },
-        {
-          "$type": "AddObjectModelApi"
-        },
-        {
-          "$type": "AddObjectModelConstructor"
-        },
-        {
-          "$type": "SimplifyMethodSignature"
-        },
-        {
-          "$type": "RemoveMethodOverloads"
-        }
-      ],
-      "PostRewriters": [
-        {
-          "$type": "ObjectModelTypeReplacer",
-          "SkipConstructor": true
-        },
-        {
-          "$type": "PointerToSpan"
-        },
-        {
-          "$type": "AddObjectModelDispose"
         }
       ]
     },
@@ -127,6 +100,44 @@
       //    "$type": "PointerToNullableType"
       //  }
       //]
+    },
+    {
+      "$type": "ImplementObjectModelTypes",
+      "Rewriters": [
+        {
+          "$type": "RemoveAttributes",
+          "Names": [ "NativeName", "NativeApi", "Flow", "RequiresLocation", "UnmanagedType" ]
+        },
+        {
+          "$type": "RemoveMethods",
+          "Names": [ "GetProcAddress", "DeviceCreateShaderModule" ]
+        },
+        {
+          "$type": "AddObjectModelHandle"
+        },
+        {
+          "$type": "AddObjectModelApi"
+        },
+        {
+          "$type": "AddObjectModelConstructor"
+        },
+        {
+          "$type": "SimplifyMethodSignature"
+        },
+        {
+          "$type": "RemoveMethodOverloads"
+        },
+        {
+          "$type": "ObjectModelTypeReplacer",
+          "SkipConstructor": true
+        },
+        {
+          "$type": "PointerToSpan"
+        },
+        {
+          "$type": "AddObjectModelDispose"
+        }
+      ]
     }
   ]
 }
