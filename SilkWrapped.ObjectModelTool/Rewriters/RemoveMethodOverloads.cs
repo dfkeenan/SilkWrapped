@@ -39,6 +39,18 @@ internal class RemoveMethodOverloads : CSharpSyntaxRewriter
 
         node = node.WithMembers(node.Members.AddRange(filteredMethods));
 
-        return node;
+        return base.VisitClassDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
+    {
+        //Remove overloads that still have pointers
+        if (node.ParameterList.Parameters.Any(p => p.Type is PointerTypeSyntax))
+        {
+            return null;
+        }
+
+
+        return base.VisitMethodDeclaration(node);
     }
 }

@@ -21,7 +21,7 @@ internal class RemoveAttributes : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitAttribute(AttributeSyntax node)
     {
-        if (names.Contains(node.Name.ToString()))
+        if (names.Count == 0 || names.Contains(node.Name.ToString()))
         {
             return null;
         }

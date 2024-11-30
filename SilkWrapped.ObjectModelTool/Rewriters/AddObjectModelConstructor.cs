@@ -1,4 +1,6 @@
-﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿using SilkWrapped.SourceGenerator;
+
+namespace SilkWrapped.ObjectModelTool.Rewriters;
 
 internal class AddObjectModelConstructor : ContextAwareCSharpSyntaxRewriter
 {

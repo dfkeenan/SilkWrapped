@@ -13,7 +13,7 @@ internal class AddObjectModelApi : ContextAwareCSharpSyntaxRewriter
             return base.VisitClassDeclaration(node);
         }
 
-        var apiProperty = PropertyDeclaration(Context.ApiTypeSymbol, "Api", SyntaxKind.PublicKeyword);
+        var apiProperty = PropertyDeclaration(Context.ApiTypeSymbol, Context.ApiName, SyntaxKind.PublicKeyword);
 
         node = node.WithMembers(node.Members.Insert(0, apiProperty));
 

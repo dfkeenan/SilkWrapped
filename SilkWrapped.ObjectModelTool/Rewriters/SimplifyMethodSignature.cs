@@ -4,6 +4,8 @@ namespace SilkWrapped.ObjectModelTool.Rewriters;
 
 internal class SimplifyMethodSignature : CSharpSyntaxRewriter
 {
+    private string? argumentExpression;
+
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
         var firstParameter = node.ParameterList.Parameters[0];
@@ -12,6 +14,8 @@ internal class SimplifyMethodSignature : CSharpSyntaxRewriter
         {
             return base.VisitMethodDeclaration(node);
         }
+
+        argumentExpression = firstParameter.Identifier.Text;
 
         var name = TypeName(firstParameter.Type);
 
@@ -25,7 +29,16 @@ internal class SimplifyMethodSignature : CSharpSyntaxRewriter
         node = node.WithIdentifier(Identifier(methodName))
                    .WithParameterList(node.ParameterList.WithParameters(node.ParameterList.Parameters.RemoveAt(0)));
 
-
         return base.VisitMethodDeclaration(node);
+    }
+
+    public override SyntaxNode? VisitArgument(ArgumentSyntax node)
+    {
+        if (node.Expression is IdentifierNameSyntax expression && expression.Identifier.Text == argumentExpression)
+        {
+            return node.WithExpression(IdentifierName("Handle").WithTriviaFrom(expression));
+        }
+
+        return base.VisitArgument(node);
     }
 }

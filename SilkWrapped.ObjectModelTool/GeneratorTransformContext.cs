@@ -1,4 +1,6 @@
 ﻿using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+using SilkWrapped.SourceGenerator;
 
 namespace SilkWrapped.ObjectModelTool;
 internal class GeneratorTransformContext
@@ -23,6 +25,8 @@ internal class GeneratorTransformContext
     public Decompiler? Decompiler { get; }
     public GeneratorItemCollection Items { get; } = [];
 
+    public string ApiName => ApiTypeSymbol.Name;
+
 }
 
 internal record GeneratorItem(
@@ -31,7 +35,14 @@ internal record GeneratorItem(
     TypeSyntax SourceType,
     TypeSyntax QualifiedSourceType,
     DocumentId DocumentId,
-    bool IsObjectModel = false);
+    bool IsObjectModel = false)
+{
+    [MemberNotNullWhen(true, nameof(IsObjectModel))]
+    public TypeSyntax? HandleType
+        => IsObjectModel
+                ? ParseTypeName($"{CustomSyntaxFactory.TypeName(SourceType)}Handle")
+                : null;
+};
 
 internal class GeneratorItemCollection : ICollection<GeneratorItem>
 {

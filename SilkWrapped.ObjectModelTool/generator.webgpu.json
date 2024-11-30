@@ -110,7 +110,7 @@
         },
         {
           "$type": "RemoveMethods",
-          "Names": [ "GetProcAddress", "DeviceCreateShaderModule" ]
+          "Names": [ "GetProcAddress", "DeviceCreateShaderModule", "TryGetDeviceExtension", "IsDeviceExtensionPresent" ]
         },
         {
           "$type": "AddObjectModelHandle"
@@ -122,10 +122,10 @@
           "$type": "AddObjectModelConstructor"
         },
         {
-          "$type": "SimplifyMethodSignature"
+          "$type": "ImplemementApiMethod"
         },
         {
-          "$type": "RemoveMethodOverloads"
+          "$type": "SimplifyMethodSignature"
         },
         {
           "$type": "ObjectModelTypeReplacer",
@@ -133,6 +133,15 @@
         },
         {
           "$type": "PointerToSpan"
+        },
+        {
+          "$type": "ReplaceParameterWithExpression",
+          "Parameters": {
+            "void* userdata": "null"
+          }
+        },
+        {
+          "$type": "RemoveMethodOverloads"
         },
         {
           "$type": "AddObjectModelDispose"

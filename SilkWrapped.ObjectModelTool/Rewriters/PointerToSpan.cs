@@ -6,6 +6,9 @@ internal class PointerToSpan : CSharpSyntaxRewriter
 {
 
     private readonly Dictionary<string, FieldDeclarationSyntax?> fieldUpdates = [];
+    private readonly List<string> conditionReplacements = [];
+    private readonly List<string> conditionRemovals = [];
+    private readonly Dictionary<string, string> argumentReplacements = [];
 
     public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)
     {
@@ -51,26 +54,37 @@ internal class PointerToSpan : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
     {
-        node = (ConstructorDeclarationSyntax)VisitBaseMethodDeclarationSyntax(node);
-        return base.VisitConstructorDeclaration(node);
+        var updated = (ConstructorDeclarationSyntax?)VisitBaseMethodDeclarationSyntax(node);
+        return updated is null ? null : base.VisitConstructorDeclaration(updated);
     }
 
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        node = (MethodDeclarationSyntax)VisitBaseMethodDeclarationSyntax(node);
-        return base.VisitMethodDeclaration(node);
+        var updated = (MethodDeclarationSyntax?)VisitBaseMethodDeclarationSyntax(node);
+        return updated is null ? null : base.VisitMethodDeclaration(updated);
     }
 
-    protected SyntaxNode VisitBaseMethodDeclarationSyntax<T>(T node)
+    protected SyntaxNode? VisitBaseMethodDeclarationSyntax<T>(T node)
         where T : BaseMethodDeclarationSyntax
     {
         var parameters = node.ParameterList.Parameters.ToDictionary(n => n.Identifier.ToString());
+
+        conditionReplacements.Clear();
+        conditionRemovals.Clear();
+        argumentReplacements.Clear();
 
         foreach (var parameter in parameters.Keys.Where(k => k.EndsWith("Count")))
         {
             var pointerName = parameter.Substring(0, parameter.Length - "Count".Length).Pluralize();
 
             if (!parameters.TryGetValue(pointerName, out var pointerParameter)) continue;
+
+            //Remove non-pointer overloads
+            if (pointerParameter.Modifiers.Any(m => m.IsKind(SyntaxKind.ReferenceKeyword) || m.IsKind(SyntaxKind.InKeyword)))
+            {
+                return null;
+            }
+
             if (pointerParameter.Type is not PointerTypeSyntax pointerType) continue;
 
             var newType = ParseTypeName($"ReadOnlySpan<{pointerType.ElementType.ToString()}> ");
@@ -92,25 +106,41 @@ internal class PointerToSpan : CSharpSyntaxRewriter
 
             node = node!.RemoveNode(countParameterNode, SyntaxRemoveOptions.KeepLeadingTrivia)!;
 
-            var body = node.Body;
-
-            var statementToUpdates = from statement in body!.Statements.OfType<IfStatementSyntax>()
-                                     from identifier in statement.Condition.DescendantNodes().OfType<IdentifierNameSyntax>()
-                                     where identifier.ToString() == pointerName
-                                     select statement;
-
-            body = body.ReplaceNodes(statementToUpdates, (old, _) => old.WithCondition(ParseExpression($"{pointerName}.Length > 0")));
-
-            var statementToRemoves = from statement in body!.Statements.OfType<IfStatementSyntax>()
-                                     from identifier in statement.Condition.DescendantNodes().OfType<IdentifierNameSyntax>()
-                                     where node.ParameterList.Parameters.Any(p => parameter == identifier.ToString())
-                                     select statement;
-
-            body = body.RemoveNodes(statementToRemoves, SyntaxRemoveOptions.KeepEndOfLine);
-
-            node = (T)node.WithBody(body);
-
+            conditionReplacements.Add(pointerName);
+            conditionRemovals.Add(parameter);
+            argumentReplacements[parameter] = $"({countParameterNode.Type!.ToString()}){pointerName}.Length";
         }
         return node;
+    }
+
+    public override SyntaxNode? VisitIfStatement(IfStatementSyntax node)
+    {
+        var conditionIdentifiers = node.Condition
+                                       .DescendantNodes()
+                                       .OfType<IdentifierNameSyntax>()
+                                       .Select(i => i.Identifier.Text);
+
+        var pointerName = conditionIdentifiers.FirstOrDefault(i => conditionReplacements.Contains(i));
+
+        if (pointerName is not null)
+        {
+            node = node.WithCondition(ParseExpression($"{pointerName}.Length > 0"));
+        }
+
+        if (conditionIdentifiers.Any(i => conditionRemovals.Contains(i)))
+        {
+            return null;
+        }
+
+        return base.VisitIfStatement(node);
+    }
+
+    public override SyntaxNode? VisitArgument(ArgumentSyntax node)
+    {
+        if (argumentReplacements.TryGetValue(node.ToString(), out var replacement))
+        {
+            node = node.WithExpression(ParseExpression(replacement));
+        }
+        return base.VisitArgument(node);
     }
 }

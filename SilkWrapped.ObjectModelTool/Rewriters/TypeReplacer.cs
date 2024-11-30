@@ -5,6 +5,7 @@ internal class TypeReplacer(TypeSyntax fromType, TypeSyntax toType, bool skipCon
 {
     private readonly TypeSyntax fromType = fromType.WithoutTrivia();
     private readonly TypeSyntax toType = toType.WithoutTrivia();
+    private readonly PointerToNullableType pointerToNullableType = new();
     public override SyntaxNode? VisitFieldDeclaration(FieldDeclarationSyntax node)
     {
         TypeSyntax type = node.Declaration.Type;
@@ -27,13 +28,13 @@ internal class TypeReplacer(TypeSyntax fromType, TypeSyntax toType, bool skipCon
     public override SyntaxNode? VisitParameterList(ParameterListSyntax node)
     {
         isConstructor = node.Ancestors().OfType<ConstructorDeclarationSyntax>().Any();
-
+        pointerToNullableType.ParameterNames.Clear();
         return base.VisitParameterList(node);
     }
 
     public override SyntaxNode? VisitParameter(ParameterSyntax node)
     {
-        if (skipConstructor && node.Ancestors().OfType<ConstructorDeclarationSyntax>().Any())
+        if (skipConstructor && isConstructor)
         {
             return base.VisitParameter(node);
         }
@@ -44,6 +45,7 @@ internal class TypeReplacer(TypeSyntax fromType, TypeSyntax toType, bool skipCon
             if (isConstructor && node.Type is PointerTypeSyntax && replacement is not NullableTypeSyntax)
             {
                 replacement = NullableType(replacement);
+                pointerToNullableType.ParameterNames.Add(node.Identifier.Text);
             }
 
             return node.WithType(replacement.WithTriviaFrom(node.Type));
@@ -79,5 +81,15 @@ internal class TypeReplacer(TypeSyntax fromType, TypeSyntax toType, bool skipCon
         }
 
         return base.VisitPointerType(node);
+    }
+
+    public override SyntaxNode? VisitIfStatement(IfStatementSyntax node)
+    {
+        return pointerToNullableType.VisitIfStatement(node);
+    }
+
+    public override SyntaxNode? VisitAssignmentExpression(AssignmentExpressionSyntax node)
+    {
+        return pointerToNullableType.VisitAssignmentExpression(node);
     }
 }

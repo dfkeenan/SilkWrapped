@@ -19,20 +19,21 @@ internal class AddObjectModelDispose : ContextAwareCSharpSyntaxRewriter
 
 
         var disposeMethodStatements = new SyntaxList<StatementSyntax>();
-        disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("if (Handle == default) return;"));
+        disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("if (Handle.IsEmpty) return;"));
         disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Disposing();"));
 
         foreach (var disposalMethod in disposalMethods)
         {
-            string statement = $"Api.{TypeName(handleType)}{disposalMethod.Identifier.Text}(Handle);";
+            string statement = $"{disposalMethod.Identifier.Text}();";
             disposeMethodStatements = disposeMethodStatements.Add(ParseStatement(statement));
         }
 
         if (TypeName(handleType) == Context.ApiOwnerTypeSymbol.Name)
         {
-            disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Api.Dispose();"));
+            disposeMethodStatements = disposeMethodStatements.Add(ParseStatement($"{Context.ApiName}.Dispose();"));
         }
 
+        disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Handle = default;"));
         disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Disposed();"));
         node = node.AddDispose(b => b.AddStatements(disposeMethodStatements))
                                  .AddMembers(ParseMemberDeclaration($"    partial void Disposing();{Environment.NewLine}")!,

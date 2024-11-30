@@ -10,7 +10,7 @@ internal class ObjectModelTypeReplacer : ContextAwareCSharpSyntaxRewriter
     {
         foreach (var item in context.Items.Where(i => i.IsObjectModel))
         {
-            node = new TypeReplacer(item.SourceType, item.TypeSyntax, SkipConstructor).Visit(node);
+            node = new TypeReplacer(item.SourceType, item.HandleType!, SkipConstructor).Visit(node);
         }
         return node;
     }

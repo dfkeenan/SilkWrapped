@@ -73,8 +73,6 @@ internal class ExtractObjectModelTypes : GeneratorTransformBase
             context.Items.Add(new GeneratorItem(className, type, sourceType, qualifiedSourceType, document.Id, true));
         }
 
-        
+
     }
-
-
 }

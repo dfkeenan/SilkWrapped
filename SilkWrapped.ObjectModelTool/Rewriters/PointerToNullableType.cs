@@ -6,6 +6,8 @@ internal class PointerToNullableType : CSharpSyntaxRewriter
 {
     private readonly HashSet<string> parameterNames = new HashSet<string>();
 
+    internal HashSet<string> ParameterNames => parameterNames;
+
     public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
     {
         PointerTypeSyntax? pointerType;
