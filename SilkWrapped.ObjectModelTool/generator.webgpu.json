@@ -68,12 +68,23 @@
     {
       "$type": "ExtractTypes",
       "TypeKind": "Delegate",
-      "OutputPath": "Generated\\Delegates"
+      "ExcludeTypesPattern": "Proc",
+      "OutputPath": "Generated\\Delegates",
+      "Rewriters": [
+        {
+          "$type": "RemoveAttributes",
+          "Names": [ "UnmanagedFunctionPointer" ]
+        },
+        {
+          "$type": "ObjectModelTypeReplacer"
+        }
+      ]
     },
     {
       "$type": "ExtractTypes",
       "TypeKind": "Struct",
       "IncludeTypesPattern": "Pfn.*",
+      "ExcludeTypesPattern": "PfnProc",
       "OutputPath": "Generated\\Delegates"
       //"Rewriters": [
       //  {
