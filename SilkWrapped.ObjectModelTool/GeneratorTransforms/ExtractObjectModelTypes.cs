@@ -74,5 +74,6 @@ internal class ExtractObjectModelTypes : GeneratorTransformBase
         }
 
 
+        context.Compilation = await context.Project.GetCompilationAsync();
     }
 }

@@ -27,6 +27,7 @@ internal class GeneratorTransformContext
 
     public string ApiName => ApiTypeSymbol.Name;
 
+    public Compilation? Compilation { get; internal set; }
 }
 
 internal record GeneratorItem(

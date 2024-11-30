@@ -14,10 +14,10 @@ internal class ExtractTypes : GeneratorTransformBase
 
     public List<CSharpSyntaxRewriter> Rewriters { get; set; } = [];
 
-    public override Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
+    public override async Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
     {
-        if (TypeKind == TypeKind.Unknown) return Task.CompletedTask;
-        if (context.Decompiler is not Decompiler decompiler) return Task.CompletedTask;
+        if (TypeKind == TypeKind.Unknown) return;
+        if (context.Decompiler is not Decompiler decompiler) return;
 
         INamespaceSymbol containingNamespace = context.ApiTypeSymbol.ContainingNamespace;
         var typeSymbols
@@ -62,14 +62,14 @@ internal class ExtractTypes : GeneratorTransformBase
             var fileName = Path.Combine(OutputPath ?? context.Generator.OutputPath, $"{typeSymbol.Name}.cs");
             var document = context.Project.AddDocument(fileName, typeSyntax.NormalizeWhitespace().GetText());
             context.Project = document.Project;
-
             var type = ParseTypeName(typeSymbol.Name);
             var qualifiedSourceType = ParseTypeName($"{context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{typeSymbol.Name}");
 
             context.Items.Add(new GeneratorItem(typeSymbol.Name, type, type, qualifiedSourceType, document.Id));
         }
 
-        return Task.CompletedTask;
+
+        context.Compilation = await context.Project.GetCompilationAsync();
     }
 
     public override string ToString()

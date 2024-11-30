@@ -26,10 +26,13 @@ internal class ImplementObjectModelTypes : GeneratorTransformBase
                     ContextAwareCSharpSyntaxRewriter contextRewriter => contextRewriter.Visit(typeSyntax, context),
                     _ => rewriter.Visit(typeSyntax)
                 };
+
+                document = document.WithSyntaxRoot(typeSyntax);
+                context.Project = document.Project;
+                context.Compilation = await context.Project.GetCompilationAsync();
             }
 
-            document = document.WithSyntaxRoot(typeSyntax);
-            context.Project = document.Project;
+           
         }
     }
 }
