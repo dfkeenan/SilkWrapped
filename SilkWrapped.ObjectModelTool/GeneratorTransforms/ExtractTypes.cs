@@ -12,6 +12,8 @@ internal class ExtractTypes : GeneratorTransformBase
     public string? IncludeTypesPattern { get; set; }
     public string? OutputPath { get; set; }
 
+    public bool SkipMarhsalling { get; set; }
+
     public List<CSharpSyntaxRewriter> Rewriters { get; set; } = [];
 
     public override async Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
@@ -50,26 +52,33 @@ internal class ExtractTypes : GeneratorTransformBase
             if (typeSyntax is null) continue;
             typeSyntax = namespaceReplacer.Visit(typeSyntax);
 
+            var type = ParseTypeName(typeSymbol.Name);
+
+            var item = await context.AddItem(OutputPath, typeSymbol.Name, typeSyntax, type, type!, cancellationToken);
+
+            if (SkipMarhsalling)
+            {
+                context.SkipMarhsalling(typeSymbol.Name);
+            }
+
             foreach (var rewriter in Rewriters)
             {
+                typeSyntax = await context.GetSyntaxRootAsync(item.DocumentId, cancellationToken);
+
+                if (typeSyntax is null) continue;
+
                 typeSyntax = rewriter switch
                 {
                     ContextAwareCSharpSyntaxRewriter contextRewriter => contextRewriter.Visit(typeSyntax, context),
                     _ => rewriter.Visit(typeSyntax)
                 };
+
+                await context.UpdateDocumentAsync(item.DocumentId, typeSyntax, cancellationToken);
             }
 
-            var fileName = Path.Combine(OutputPath ?? context.Generator.OutputPath, $"{typeSymbol.Name}.cs");
-            var document = context.Project.AddDocument(fileName, typeSyntax.NormalizeWhitespace().GetText());
-            context.Project = document.Project;
-            var type = ParseTypeName(typeSymbol.Name);
-            var qualifiedSourceType = ParseTypeName($"{context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{typeSymbol.Name}");
-
-            context.Items.Add(new GeneratorItem(typeSymbol.Name, type, type, qualifiedSourceType, document.Id));
+            
         }
 
-
-        context.Compilation = await context.Project.GetCompilationAsync();
     }
 
     public override string ToString()

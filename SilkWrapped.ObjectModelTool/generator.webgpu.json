@@ -77,6 +77,9 @@
         },
         {
           "$type": "ObjectModelTypeReplacer"
+        },
+        {
+          "$type": "BytePointerToString"
         }
       ]
     },
@@ -85,33 +88,17 @@
       "TypeKind": "Struct",
       "IncludeTypesPattern": "Pfn.*",
       "ExcludeTypesPattern": "PfnProc",
-      "OutputPath": "Generated\\Delegates"
-      //"Rewriters": [
-      //  {
-      //    "$type": "RemoveAttributes",
-      //    "Names": [ "NativeName" ]
-      //  },
-      //  {
-      //    "$type": "BytePointerToString",
-      //    "Names": [ "Label", "Key" ]
-      //  },
-      //  {
-      //    "$type": "RemoveChainingStruct"
-      //  },
-      //  {
-      //    "$type": "ObjectModelTypeReplacer"
-      //  },
-      //  {
-      //    "$type": "PointerToSpan"
-      //  },
-      //  {
-      //    "$type": "MakeStructPartial"
-      //  },
-      //  {
-      //    "$type": "PointerToNullableType"
-      //  }
-      //]
+      "OutputPath": "Generated\\Delegates",
+      "SkipMarhsalling": true,
+      "Rewriters": [
+        {
+          "$type": "ImplementFunctionPointer"
+        }
+      ]
     },
+    //{
+    //  "$type": "FixRefStructs"
+    //},
     {
       "$type": "ImplementObjectModelTypes",
       "Rewriters": [
@@ -153,6 +140,9 @@
         },
         {
           "$type": "RemoveMethodOverloads"
+        },
+        {
+          "$type": "ChangeHandleToObjectModel"
         },
         {
           "$type": "AddObjectModelDispose"

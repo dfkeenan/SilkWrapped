@@ -22,7 +22,7 @@ internal class BytePointerToString : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
     {
-        if (node.Type is PointerTypeSyntax pointerType &&
+        if (node.Variables is [var variable] && ShouldChange(variable.Identifier.Text) && node.Type is PointerTypeSyntax pointerType &&
             pointerType.ElementType.ToString() == "byte")
         {
             return node.WithType(stringSyntax);
@@ -33,7 +33,7 @@ internal class BytePointerToString : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitParameter(ParameterSyntax node)
     {
-        if (node.Type is PointerTypeSyntax pointerType &&
+        if (ShouldChange(node.Identifier.Text) && node.Type is PointerTypeSyntax pointerType &&
             pointerType.ElementType.ToString() == "byte")
         {
             return node.WithType(stringSyntax);
@@ -41,4 +41,7 @@ internal class BytePointerToString : CSharpSyntaxRewriter
 
         return base.VisitParameter(node);
     }
+
+    private bool ShouldChange(string name) 
+        => names is {Count: 0 } || names.Contains(name);
 }

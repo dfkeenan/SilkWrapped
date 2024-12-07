@@ -1,4 +1,5 @@
 ﻿global using Microsoft.CodeAnalysis;
+global using Microsoft.CodeAnalysis.CSharp;
 global using Microsoft.CodeAnalysis.CSharp.Syntax;
 global using Microsoft.CodeAnalysis.MSBuild;
 global using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -155,6 +156,7 @@ internal class Program
         {
             Console.WriteLine("Something went wrong!");
             Console.WriteLine(ex.Message);
+            Console.WriteLine(ex.StackTrace);
         }
     }
 }

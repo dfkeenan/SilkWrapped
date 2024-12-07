@@ -62,18 +62,14 @@ internal class ExtractObjectModelTypes : GeneratorTransformBase
                 };
             }
 
-            var fileName = Path.Combine(context.Generator.OutputPath, $"{className}.cs");
-            var document = context.Project.AddDocument(fileName, typeSyntax.NormalizeWhitespace().GetText());
-            context.Project = document.Project;
-
             var type = ParseTypeName(className);
             var sourceType = methods[0].ParameterList.Parameters[0].Type;
-            var qualifiedSourceType = ParseTypeName($"{context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{sourceType!.ToFullString()}");
 
-            context.Items.Add(new GeneratorItem(className, type, sourceType, qualifiedSourceType, document.Id, true));
+            await context.AddItem(null, className, typeSyntax, type, sourceType!, cancellationToken, true);
+            context.SkipMarhsalling(className);
+            context.SkipMarhsalling(name);
+
         }
 
-
-        context.Compilation = await context.Project.GetCompilationAsync();
     }
 }

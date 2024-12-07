@@ -12,27 +12,20 @@ internal class ImplementObjectModelTypes : GeneratorTransformBase
     {
         foreach (var item in context.Items.Where(i => i.IsObjectModel))
         {
-            var document = context.Project.GetDocument(item.DocumentId)!;
-            var syntaxTree = await document.GetSyntaxTreeAsync(cancellationToken);
-
-            if (syntaxTree is null) continue;
-
-            var typeSyntax = syntaxTree.GetRoot();
-
             foreach (var rewriter in Rewriters)
             {
+                var typeSyntax = await context.GetSyntaxRootAsync(item.DocumentId, cancellationToken);
+
+                if (typeSyntax is null) continue;
+
                 typeSyntax = rewriter switch
                 {
                     ContextAwareCSharpSyntaxRewriter contextRewriter => contextRewriter.Visit(typeSyntax, context),
                     _ => rewriter.Visit(typeSyntax)
                 };
 
-                document = document.WithSyntaxRoot(typeSyntax);
-                context.Project = document.Project;
-                context.Compilation = await context.Project.GetCompilationAsync();
+                await context.UpdateDocumentAsync(item.DocumentId, typeSyntax, cancellationToken);
             }
-
-           
         }
     }
 }

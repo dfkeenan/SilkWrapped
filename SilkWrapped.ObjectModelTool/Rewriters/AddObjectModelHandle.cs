@@ -38,7 +38,7 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
             return base.VisitClassDeclaration(node);
         }
 
-        var handleType = ParseTypeName($"{Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{firstParameter.Type!.ToFullString()}");
+        var handleType = ParseTypeName($"{Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{firstParameter.Type!.ToString()}");
 
         handleType = MakeHandleStruct(handleType);
 

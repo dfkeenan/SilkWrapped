@@ -1,4 +1,6 @@
-﻿using SilkWrapped.SourceGenerator;
+﻿using System.CommandLine;
+using System.Reflection.Metadata;
+using SilkWrapped.SourceGenerator;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 
@@ -10,13 +12,49 @@ internal class ImplemementApiMethod : ContextAwareCSharpSyntaxRewriter
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
 
-        var arguments = from p in node.ParameterList.Parameters
-                        select p.Modifiers switch
-                        {
-                            { Count: > 0 } => $"{p.Modifiers.ToString()} {p.Identifier.Text}",
-                            _ => p.Identifier.Text
-                        };
+        var arguments = new List<string>();
+        var statements = new List<string>();
 
+        //Add handle
+        arguments.Add(node.ParameterList.Parameters[0].Identifier.Text);
+
+        foreach (var parameter in node.ParameterList.Parameters.Skip(1))
+        {
+            var argument = parameter.Identifier.Text;
+
+            var typeName = TypeName(parameter.Type);
+
+            if (typeName is not null && Context.TryGetApiTypeSymbol(typeName, out var apiTypeSymbol)) 
+            { 
+                if(apiTypeSymbol.TypeKind == TypeKind.Enum)
+                {
+                    if(parameter.Modifiers.ToString() == "ref")
+                    {
+                        argument = $"Unsafe.As<{apiTypeSymbol.Name},{apiTypeSymbol.ToDisplayString()}>(ref features)";
+                    }
+                    else
+                    {
+                        argument = $"({apiTypeSymbol.ToDisplayString()}){argument}";
+                    }
+                }
+                else if(apiTypeSymbol.TypeKind == TypeKind.Struct && Context.ShouldMarshall(apiTypeSymbol.Name))
+                {
+                    argument = $"__{argument}";
+
+                    statements.Add($"{apiTypeSymbol.ToDisplayString()} {argument} = default;");
+
+                }
+            
+            
+            }
+
+            if(parameter.Modifiers is { Count: > 0 })
+            {
+                argument = $"{parameter.Modifiers.ToString()} {argument}";
+            }
+
+            arguments.Add(argument);
+        }
 
 
         TypeParameterListSyntax? typeParameterList
@@ -28,14 +66,31 @@ internal class ImplemementApiMethod : ContextAwareCSharpSyntaxRewriter
 
         if (node.ReturnType.IsVoid())
         {
-            return node.WithBody(node.Body!.AddStatements(ParseStatement(callStatement)));
+            statements.Add(callStatement);
+        }
+        else
+        {
+            var resultVariable = "result";
+
+            callStatement = $"var {resultVariable} = {callStatement}";
+
+            if (TypeName(node.ReturnType) is string returnTypeName && Context.TryGetApiTypeSymbol(returnTypeName, out var apiTypeSymbol))
+            {
+                if (apiTypeSymbol.TypeKind == TypeKind.Enum)
+                {
+                    resultVariable = $"({apiTypeSymbol.Name}){resultVariable}";
+                }
+            }
+
+            var returnStatement = $"return {resultVariable};";
+
+            statements.Add(callStatement);
+            statements.Add(returnStatement);
         }
 
-        callStatement = $"var result = {callStatement}";
-        var returnStatement = "return result;";
+
         return node.WithBody(node.Body!.AddStatements(
-            ParseStatement(callStatement),
-            ParseStatement(returnStatement)
+            statements.Select(s => ParseStatement(s))
             ));
 
     }
