@@ -5,8 +5,9 @@ public unsafe static class WindowExtensions
 {
     public static SurfaceWrapper CreateWebGPUSurface(this INativeWindowSource view, InstanceWrapper instance)
     {
-        Surface* handle = view.CreateWebGPUSurface(instance.Api.Core, instance);
+        
+        var handle = Silk.NET.WebGPU.WebGPUSurface.CreateWebGPUSurface(view, instance.WebGPU, instance.Handle);
 
-        return new SurfaceWrapper(instance.Api, handle);
+        return new SurfaceWrapper(instance.WebGPU, handle);
     }
 }

@@ -6,6 +6,6 @@ public unsafe partial class SurfaceWrapper
         SurfaceTexture surfaceTexture = default;
         GetCurrentTexture(ref surfaceTexture);
 
-        return (surfaceTexture.Status, new TextureWrapper(Api, surfaceTexture.Texture));
+        return (surfaceTexture.Status, new TextureWrapper(WebGPU, surfaceTexture.Texture));
     }
 }

@@ -3,7 +3,6 @@ public unsafe partial class AdapterWrapper
 {
     public DeviceWrapper RequestDevice(in DeviceDescriptor descriptor = default)
     {
-        int dummy = 0;
         var resetEvent = new ManualResetEvent(false);
 
         DeviceWrapper? device = null;
@@ -17,12 +16,11 @@ public unsafe partial class AdapterWrapper
             }
             else
             {
-                exception = new Exception($"Error requesting adapter. {SilkMarshal.PtrToString((nint)arg2)}");
+                exception = new Exception($"Error requesting adapter. {arg2}");
             }
 
             resetEvent.Set();
-        },
-        ref dummy);
+        });
 
         resetEvent.WaitOne();
 

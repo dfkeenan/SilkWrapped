@@ -122,6 +122,21 @@ internal class GeneratorTransformContext
         return generatedTypeSymbols.TryGetValue(name,out namedTypeSymbol);
     }
 
+    public bool IsGeneratedTypeSymbol(ITypeSymbol typeSymbol)
+    {
+        if(typeSymbol is not INamedTypeSymbol namedTypeSymbol) return false;
+
+        if (namedTypeSymbol.IsNullableOfT(out var outType))
+        {
+            namedTypeSymbol = outType!;
+        }
+
+        if (TryGetGeneratedTypeSymbol(namedTypeSymbol.Name, out var generatedTypeSymbol) && 
+            SymbolEqualityComparer.Default.Equals(namedTypeSymbol.ContainingNamespace, generatedTypeSymbol.ContainingNamespace)) return true;
+
+        return false;
+    }
+
     public void SkipMarhsalling(string name)
         => shouldSkipMarshalling.Add(name);
 

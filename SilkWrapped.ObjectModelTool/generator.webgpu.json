@@ -46,7 +46,7 @@
         },
         {
           "$type": "BytePointerToString",
-          "Names": [ "Label", "Key" ]
+          "Names": [ "Label", "Key", "EntryPoint" ]
         },
         {
           "$type": "RemoveChainingStruct"

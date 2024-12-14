@@ -1,7 +1,8 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 
-namespace SilkWrapped.SourceGenerator;
-public static class SymbolExtensions
+namespace SilkWrapped.ObjectModelTool;
+internal static class SymbolExtensions
 {
     public static bool Is(this ITypeSymbol symbol, ITypeSymbol baseType)
     {
@@ -31,5 +32,24 @@ public static class SymbolExtensions
                 type = type.BaseType!;
             }
         }
+    }
+
+    public static bool IsNullableOfT(this ITypeSymbol type, [NotNullWhen(true)] out INamedTypeSymbol? outType)
+    {
+        if (type is not INamedTypeSymbol namedTypeSymbol)
+        {
+            outType = null;
+            return false;
+        }
+
+
+        if (namedTypeSymbol.Name == "Nullable" && namedTypeSymbol.TypeArguments is { Length: 1 } && namedTypeSymbol.TypeArguments[0] is INamedTypeSymbol result)
+        {
+            outType = result;
+            return true;
+        }
+
+        outType = null;
+        return false;
     }
 }

@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
 {
     public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)
     {
         var toRemove = new List<SyntaxNode>();
-
+        var delegateName = "";
         foreach (var item in node.Members)
         {
             switch (item)
@@ -27,6 +21,9 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
                 case ConstructorDeclarationSyntax {ParameterList.Parameters: [ParameterSyntax{Type: FunctionPointerTypeSyntax } ,..] } constructorDeclarationSyntax:
                     toRemove.Add(constructorDeclarationSyntax);
                     break;
+                case MethodDeclarationSyntax {Identifier.Text: "From" } methodDeclarationSyntax:
+                    delegateName = TypeName(methodDeclarationSyntax.ParameterList.Parameters[0].Type);
+                    break;
                 default:
                     break;
             }
@@ -40,6 +37,7 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
 
         members = members.Insert(0, ParseMemberDeclaration($"private readonly {apiType} callback;")!);
         members = members.Add(ParseMemberDeclaration($"public static implicit operator {apiType}({node.Identifier.Text} callback) => callback.callback;")!);
+        //members = members.Add(ParseMemberDeclaration($"public static implicit operator {node.Identifier.Text}({delegateName} proc) => new {node.Identifier.Text}(proc);")!);
 
 
         node = node.WithMembers(members);
@@ -79,7 +77,7 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
                                 _ => parameter.Name
                             };
 
-       var statement = $$"""
+            var statement = $$"""
                                 callback = new(({{parameters}}) =>
                                 {
                                     proc({{string.Join(", ", arguments)}});

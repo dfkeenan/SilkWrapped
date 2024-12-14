@@ -17,11 +17,11 @@ public unsafe partial class DeviceWrapper
             NextInChain = (Silk.NET.WebGPU.ChainedStruct*)(&wgslDescriptor),
         };
 
-        var result = Api.DeviceCreateShaderModule(Handle, in shaderModuleDescriptor);
+        var result = WebGPU.DeviceCreateShaderModule(Handle, in shaderModuleDescriptor);
 
         SilkMarshal.FreeString((nint)wgslDescriptor.Code);
 
-        return new ShaderModuleWrapper(Api, result);
+        return new ShaderModuleWrapper(WebGPU, result);
     }
 
     partial void Disposing()
