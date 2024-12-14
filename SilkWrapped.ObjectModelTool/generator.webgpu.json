@@ -55,7 +55,7 @@
           "$type": "ObjectModelTypeReplacer"
         },
         {
-          "$type": "PointerToSpan"
+          "$type": "PointerToArray"
         },
         {
           "$type": "MakeStructPartial"
@@ -96,9 +96,6 @@
         }
       ]
     },
-    //{
-    //  "$type": "FixRefStructs"
-    //},
     {
       "$type": "ImplementObjectModelTypes",
       "Rewriters": [
