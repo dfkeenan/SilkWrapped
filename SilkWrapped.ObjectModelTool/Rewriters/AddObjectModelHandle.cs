@@ -42,6 +42,7 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
 
         handleType = MakeHandleStruct(handleType);
 
+        Context.AddHandle(TypeName(handleType)!, node.Identifier.Text);
 
         var handleProperty = PropertyDeclaration(handleType, "Handle", SyntaxKind.PublicKeyword).WithSetter(SyntaxKind.PrivateKeyword);
 

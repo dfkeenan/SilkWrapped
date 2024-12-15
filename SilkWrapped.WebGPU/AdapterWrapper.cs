@@ -7,20 +7,21 @@ public unsafe partial class AdapterWrapper
 
         DeviceWrapper? device = null;
         Exception? exception = null;
-
-        RequestDevice(in descriptor, (arg0, arg1, arg2, arg3) =>
+        using PfnRequestDeviceCallback callback = new((status, handle, message, arg3) =>
         {
-            if (arg0 == RequestDeviceStatus.Success)
+            if (status == RequestDeviceStatus.Success)
             {
-                device = arg1;
+                device = new DeviceWrapper(WebGPU, handle);
             }
             else
             {
-                exception = new Exception($"Error requesting adapter. {arg2}");
+                exception = new Exception($"Error requesting adapter. {message}");
             }
 
             resetEvent.Set();
         });
+
+        RequestDevice(in descriptor, callback);
 
         resetEvent.WaitOne();
 

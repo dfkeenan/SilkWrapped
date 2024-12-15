@@ -1,6 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 
 internal class RemoveMethodOverloads : CSharpSyntaxRewriter
 {
@@ -33,6 +31,15 @@ internal class RemoveMethodOverloads : CSharpSyntaxRewriter
                     continue;
                 }
             }
+
+            var spanMethods = methodGroup.Where(m => m.ParameterList.Parameters.Any(p => p.Type is GenericNameSyntax gs && gs.Identifier.Text == "ReadOnlySpan"));
+
+            if (spanMethods.Any())
+            {
+                filteredMethods.AddRange(spanMethods);
+                continue;
+            }
+
 
             filteredMethods.AddRange(methodGroup);
         }

@@ -1,44 +1,53 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
-
-internal class SimplifyMethodSignature : CSharpSyntaxRewriter
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
+internal class SimplifyMethodSignature : ContextAwareCSharpSyntaxRewriter
 {
-    private string? argumentExpression;
-
+    private readonly Dictionary<string, ParameterSyntax> replacementParameters = []; 
+    private readonly Dictionary<string, ExpressionSyntax> replacementExpressions = [];
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        var firstParameter = node.ParameterList.Parameters[0];
+        replacementParameters.Clear();
+        replacementExpressions.Clear();
 
-        if (firstParameter is null)
+        if(node.ParameterList.Parameters is [var parameter])
         {
-            return base.VisitMethodDeclaration(node);
+            if(TypeName(parameter.Type) is string parameterTypeName &&
+                Context.TryGetGeneratedTypeSymbol(parameterTypeName, out var parameterType))
+            {
+                if (parameterType.GetMembers().OfType<IFieldSymbol>().ToList() is [IFieldSymbol fieldSymbol] &&
+                    fieldSymbol.Type.SpecialType == SpecialType.System_String)
+                {
+                    var p = ParseParameterList($"string? {ToPascalCase(fieldSymbol.Name)} = null")
+                                .Parameters.First();
+
+                    if (p != null)
+                    {
+                        replacementParameters.Add(parameter.Identifier.Text, p);
+                        replacementExpressions.Add($"{parameter.Identifier}.{fieldSymbol.Name}", ParseExpression(ToPascalCase(fieldSymbol.Name)));
+                    }
+                }
+            }
         }
-
-        argumentExpression = firstParameter.Identifier.Text;
-
-        var name = TypeName(firstParameter.Type);
-
-        if (name is null)
-        {
-            return base.VisitMethodDeclaration(node);
-        }
-
-        var methodName = node.Identifier.Text.Replace(name, "");
-
-        node = node.WithIdentifier(Identifier(methodName))
-                   .WithParameterList(node.ParameterList.WithParameters(node.ParameterList.Parameters.RemoveAt(0)));
 
         return base.VisitMethodDeclaration(node);
     }
 
-    public override SyntaxNode? VisitArgument(ArgumentSyntax node)
+    public override SyntaxNode? VisitParameter(ParameterSyntax node)
     {
-        if (node.Expression is IdentifierNameSyntax expression && expression.Identifier.Text == argumentExpression)
+        if (replacementParameters.TryGetValue(node.Identifier.Text, out var parameter))
         {
-            return node.WithExpression(IdentifierName("Handle").WithTriviaFrom(expression));
+            return parameter;
         }
 
-        return base.VisitArgument(node);
+        return base.VisitParameter(node);
+    }
+
+    public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
+    {
+        if (replacementExpressions.TryGetValue(node.ToString(), out var expression))
+        {
+            return expression;
+        }
+
+        return base.VisitMemberAccessExpression(node);
     }
 }

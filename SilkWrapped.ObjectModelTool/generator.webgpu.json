@@ -46,7 +46,7 @@
         },
         {
           "$type": "BytePointerToString",
-          "Names": [ "Label", "Key", "EntryPoint" ]
+          "ExcludeNames": [ ]
         },
         {
           "$type": "RemoveChainingStruct"
@@ -80,6 +80,12 @@
         },
         {
           "$type": "BytePointerToString"
+        },
+        {
+          "$type": "PointerToNullableType"
+        },
+        {
+          "$type": "PrettyParameterName"
         }
       ]
     },
@@ -120,7 +126,7 @@
           "$type": "ImplemementApiMethod"
         },
         {
-          "$type": "SimplifyMethodSignature"
+          "$type": "RemoveHandleFromMethodSignature"
         },
         {
           "$type": "ObjectModelTypeReplacer",
@@ -140,6 +146,9 @@
         },
         {
           "$type": "ChangeHandleToObjectModel"
+        },
+        {
+          "$type": "SimplifyMethodSignature"
         },
         {
           "$type": "AddObjectModelDispose"

@@ -1,52 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.CodeAnalysis.Text;
+﻿using Microsoft.CodeAnalysis.FindSymbols;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ChangeHandleToObjectModel : ContextAwareCSharpSyntaxRewriter
 {
-    public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
+    public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        var semanticModel = Context.Compilation!.GetSemanticModel(node.SyntaxTree);
-        var methods = node.Members.OfType<MethodDeclarationSyntax>();
-        var changes = new Dictionary<MethodDeclarationSyntax, ITypeSymbol>();
-
-        foreach ( var method in methods)
+        if (TypeName(node.ReturnType) is string returnTypeName && 
+            Context.TryGetObjectTypeName(returnTypeName, out var objectTypeName))
         {
-            var methodSymbol = semanticModel?.GetDeclaredSymbol(method);
-            
-            if (methodSymbol?.ReturnType is ITypeSymbol { Name: string name } && name.EndsWith("Handle"))
+            var statements = node.Body!.Statements;
+            if (statements[statements.Count - 1] is ReturnStatementSyntax returnStatement)
             {
-                if (Context.TryGetGeneratedTypeSymbol(name, out var typeSymbol))
-                {
-                    var propertyReference = FindReferenceSymbolsWithReturnType(typeSymbol, Context.Project.Solution)
-                                            .Result.OfType<IPropertySymbol>().FirstOrDefault();
+                var expression = ParseExpression($"new {objectTypeName}({Context.ApiName}, {returnStatement.Expression})");
+                returnStatement = returnStatement.WithExpression(expression);
+                statements = statements.RemoveAt(statements.Count - 1).Add(returnStatement);
 
-                    if (propertyReference != null)
-                    {
-                        changes[method] = propertyReference.ContainingType;
-                    }
-                }
+                node = node.WithBody(Block().WithStatements(statements));
             }
+            return node.WithReturnType(ParseTypeName(objectTypeName).WithTriviaFrom(node.ReturnType));
         }
 
-        if(changes.Count > 0)
-        {
-            node = node.ReplaceNodes(changes.Keys, (old, updated) =>
-            {
-                return updated.WithReturnType(TypeSyntax(changes[old]));
-            });
 
-            return node;
-        }
-
-        return base.VisitClassDeclaration(node);
+        return base.VisitMethodDeclaration(node);
     }
 
     protected static async Task<IEnumerable<ISymbol>> FindReferenceSymbolsWithReturnType(ITypeSymbol typeSymbol, Solution solution)

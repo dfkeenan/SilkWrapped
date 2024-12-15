@@ -10,9 +10,9 @@ internal class ImplementObjectModelTypes : GeneratorTransformBase
 
     public override async Task TransformAsync(GeneratorTransformContext context, CancellationToken cancellationToken)
     {
-        foreach (var item in context.Items.Where(i => i.IsObjectModel))
+        foreach (var rewriter in Rewriters)
         {
-            foreach (var rewriter in Rewriters)
+            foreach (var item in context.Items.Where(i => i.IsObjectModel))
             {
                 var typeSyntax = await context.GetSyntaxRootAsync(item.DocumentId, cancellationToken);
 

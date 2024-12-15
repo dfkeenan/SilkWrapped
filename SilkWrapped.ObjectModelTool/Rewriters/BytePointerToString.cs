@@ -1,23 +1,22 @@
 ﻿using System.Text.Json.Serialization;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 
 internal class BytePointerToString : CSharpSyntaxRewriter
 {
-    private readonly HashSet<string> names;
+    private readonly HashSet<string> excludeNames;
     private readonly TypeSyntax stringSyntax = ParseTypeName("string? ");
 
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
-    public ISet<string> Names => names;
+    public ISet<string> ExcludeNames => excludeNames;
     public BytePointerToString()
     {
-        names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        excludeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public BytePointerToString(params string[] names)
     {
-        this.names = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+        this.excludeNames = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
     }
 
     public override SyntaxNode? VisitVariableDeclaration(VariableDeclarationSyntax node)
@@ -43,5 +42,5 @@ internal class BytePointerToString : CSharpSyntaxRewriter
     }
 
     private bool ShouldChange(string name) 
-        => names is {Count: 0 } || names.Contains(name);
+        => excludeNames is {Count: 0 } || !excludeNames.Contains(name);
 }

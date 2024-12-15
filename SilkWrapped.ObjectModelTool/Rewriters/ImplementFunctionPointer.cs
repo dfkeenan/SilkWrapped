@@ -62,31 +62,45 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
     {
 
         if (TypeName(node.ParameterList.Parameters[0].Type) is string typeName &&
-            Context.TryGetApiTypeSymbol(typeName, out var apiType) &&
+            Context.TryGetGeneratedTypeSymbol(typeName, out var apiType) &&
             apiType.DelegateInvokeMethod is IMethodSymbol delegateType)
         {
-            string parameters = string.Join(", ", delegateType.Parameters.Select(p => p.Name));
+            
 
-            var arguments = from parameter in delegateType.Parameters
-                            let type = parameter.Type
-                            select parameter switch
-                            {
-                                {Type.TypeKind: TypeKind.Enum } => $"({type.Name}){parameter.Name}",
-                                {Type: IPointerTypeSymbol {PointedAtType.SpecialType: SpecialType.System_Byte} } 
-                                    => $"SilkMarshal.PtrToString((nint){parameter.Name}, NativeStringEncoding.UTF8)",
-                                _ => parameter.Name
-                            };
+            var parameters = delegateType.DeclaringSyntaxReferences.FirstOrDefault()?
+                                           .SyntaxTree
+                                           .GetRoot()
+                                           .DescendantNodes()
+                                           .OfType<ParameterListSyntax>()
+                                           .FirstOrDefault()?
+                                           .Parameters;
 
-            var statement = $$"""
-                                callback = new(({{parameters}}) =>
-                                {
-                                    proc({{string.Join(", ", arguments)}});
-                                });
-                              """;
+            if (parameters != null)
+            {
 
-            node = node.WithBody(Block(ParseStatement(statement)));
+                var arguments = new List<string>();
+                var statements = new IndentedStringBuilder();
 
+                statements.Append("callback = new((")
+                          .AppendJoin(delegateType.Parameters.Select(p => p.Name))
+                          .AppendLine(") =>")
+                          .AppendLine("{")
+                          .IncrementIndent();
 
+                MemberMapper.MapOutParameters(
+                    Context,
+                    statements,
+                    parameters,
+                    arguments);
+
+                statements.Append("proc(")
+                          .AppendJoin(arguments)
+                          .AppendLine(");")
+                          .DecrementIndent()
+                          .AppendLine("});");
+
+                node = node.WithBody(Block(ParseStatement(statements.ToString())));
+            }
         }
 
         

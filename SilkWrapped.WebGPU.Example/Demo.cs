@@ -128,11 +128,11 @@ internal class Demo : IDisposable
         adapter = instance.RequestAdapter(surface);
 
 
-        device = adapter.RequestDevice(in d);
+        device = adapter.RequestDevice();
 
         SurfaceCapabilities surfaceCapabilities = default;
         surface.GetCapabilities(adapter, ref surfaceCapabilities);
-        surfaceFormats = surfaceCapabilities.Formats.ToArray();
+        surfaceFormats = surfaceCapabilities.Formats;
 
 
         queue = device.GetQueue();
@@ -178,10 +178,7 @@ internal class Demo : IDisposable
 
         unsafe
         {
-
-
-            var dummy = 0;
-            device.SetUncapturedErrorCallback(EC, ref dummy);
+            device.SetUncapturedErrorCallback(EC);
 
 
             { //Create texture and texture view
@@ -400,13 +397,13 @@ internal class Demo : IDisposable
                 //Write the data to the buffer
                 queue.WriteBuffer(vertexBuffer, 0, in data[0], (nuint)vertexBufferSize);
 
-                ////Create a new command encoder
-                //using var commandEncoder = device.CreateCommandEncoder();
+                //Create a new command encoder
+                using var commandEncoder = device.CreateCommandEncoder();
 
-                ////Finish the command encoder
-                //using var commandBuffer = commandEncoder.Finish();
+                //Finish the command encoder
+                using var commandBuffer = commandEncoder.Finish();
 
-                //queue.Submit(1, commandBuffer);
+                queue.Submit([commandBuffer]);
             } //Create vertex buffer
         }
 
@@ -587,9 +584,8 @@ internal class Demo : IDisposable
 
         using var renderPassEncoder = commandEncoder.BeginRenderPass(in renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
-        uint zero = 0;
-        renderPassEncoder.SetBindGroup(0, textureBindGroup, 0, in zero);
-        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup, 0, in zero);
+        renderPassEncoder.SetBindGroup(0, textureBindGroup, []);
+        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup, []);
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBufferSize);
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();

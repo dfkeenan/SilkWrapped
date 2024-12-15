@@ -9,15 +9,15 @@ public unsafe partial class InstanceWrapper
         Exception? exception = null;
 
         RequestAdapterOptions options = new RequestAdapterOptions() { CompatibleSurface = surface, PowerPreference = powerPreference };
-        PfnRequestAdapterCallback callback = new((arg0, arg1, arg2, arg3) =>
+        using PfnRequestAdapterCallback callback = new((status, handle, message, arg3) =>
         {
-            if (arg0 == RequestAdapterStatus.Success)
+            if (status == RequestAdapterStatus.Success)
             {
-                adapter = new AdapterWrapper(this.WebGPU, arg1);
+                adapter = new AdapterWrapper(this.WebGPU, handle);
             }
             else
             {
-                exception = new Exception($"Error requesting adapter. {arg2}");
+                exception = new Exception($"Error requesting adapter. {message}");
             }
 
             resetEvent.Set();
