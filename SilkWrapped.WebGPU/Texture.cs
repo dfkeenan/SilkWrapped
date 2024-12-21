@@ -1,11 +1,11 @@
 ﻿namespace SilkWrapped.WebGPU;
-public unsafe partial class TextureWrapper
+public unsafe partial class Texture
 {
-    public TextureViewWrapper CreateView()
+    public TextureView CreateView()
     {
         var result = WebGPU.TextureCreateView(Handle, null);
         if (result == null)
             return null;
-        return new TextureViewWrapper(WebGPU, result);
+        return new TextureView(WebGPU, result);
     }
 }

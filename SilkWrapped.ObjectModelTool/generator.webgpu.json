@@ -6,7 +6,7 @@
   "DisposalMethodNamePattern": ".*(Release).*",
   "HandleTypeNameExclusionPattern": "(Pfn).*|.*Descriptor|InstanceFeatures|Future|SurfaceCapabilities",
 
-  "ObjectModelNameFormatString": "{0}Wrapper",
+  "ObjectModelNameFormatString": "{0}",
   "OutputPath": "Generated\\",
 
   "TransformGenerators": [

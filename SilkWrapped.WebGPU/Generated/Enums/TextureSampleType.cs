@@ -1,0 +1,13 @@
+﻿using Silk.NET.Core.Attributes;
+
+namespace SilkWrapped.WebGPU;
+public enum TextureSampleType
+{
+    Undefined = 0,
+    Float = 1,
+    UnfilterableFloat = 2,
+    Depth = 3,
+    Sint = 4,
+    Uint = 5,
+    Force32 = int.MaxValue
+}

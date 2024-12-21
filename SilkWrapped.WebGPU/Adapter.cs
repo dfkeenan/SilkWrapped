@@ -1,17 +1,17 @@
 ﻿namespace SilkWrapped.WebGPU;
-public unsafe partial class AdapterWrapper
+public unsafe partial class Adapter
 {
-    public DeviceWrapper RequestDevice(in DeviceDescriptor descriptor = default)
+    public Device RequestDevice(in DeviceDescriptor descriptor = default)
     {
         var resetEvent = new ManualResetEvent(false);
 
-        DeviceWrapper? device = null;
+        Device? device = null;
         Exception? exception = null;
         using PfnRequestDeviceCallback callback = new((status, handle, message, arg3) =>
         {
             if (status == RequestDeviceStatus.Success)
             {
-                device = new DeviceWrapper(WebGPU, handle);
+                device = new Device(WebGPU, handle);
             }
             else
             {

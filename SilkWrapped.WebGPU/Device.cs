@@ -1,7 +1,7 @@
 ﻿namespace SilkWrapped.WebGPU;
-public unsafe partial class DeviceWrapper
+public unsafe partial class Device
 {
-    public ShaderModuleWrapper CreateShaderModuleWGSL(string code)
+    public ShaderModule CreateShaderModuleWGSL(string code)
     {
         var wgslDescriptor = new Silk.NET.WebGPU.ShaderModuleWGSLDescriptor
         {
@@ -21,7 +21,7 @@ public unsafe partial class DeviceWrapper
 
         SilkMarshal.FreeString((nint)wgslDescriptor.Code);
 
-        return new ShaderModuleWrapper(WebGPU, result);
+        return new ShaderModule(WebGPU, result);
     }
 
     partial void Disposing()

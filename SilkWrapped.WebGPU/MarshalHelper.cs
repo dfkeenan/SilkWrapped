@@ -15,7 +15,26 @@ internal struct MarshalHelper : IDisposable
 
     public MarshalHelper() { }
 
-    public unsafe Span<T> Allocate<T>(int length)
+    public unsafe TTo* Pin<TFrom, TTo>(TFrom[] value)
+        where TFrom : unmanaged
+        where TTo : unmanaged
+    {
+
+        var memory = new Memory<TFrom>(value);
+        var handle = memory.Pin();
+
+        var dispose = () =>
+        {
+            handle.Dispose();
+        };
+
+        AddDisposable(dispose);
+
+        return (TTo*)handle.Pointer;
+    }
+
+
+    public unsafe Span<T> RentSpan<T>(int length)
         where T : unmanaged
     {
         var array = ArrayPool<T>.Shared.Rent(length);
@@ -33,6 +52,77 @@ internal struct MarshalHelper : IDisposable
         return memory.Span;
     }
 
+    public unsafe T* RentPtr<T>(int length)
+        where T : unmanaged
+    {
+        var span = RentSpan<T>(length);
+        return AsPointer(span);
+    }
+
+    public unsafe T* RentPtr<T>(ref readonly T value)
+        where T : unmanaged
+    {
+        var owner = MemoryPool<T>.Shared.Rent(1);
+
+        var memory = owner.Memory;
+        memory.Span[0] = value;
+
+        var handle = memory.Pin();
+        var ptr = (T*)handle.Pointer;
+
+        var dispose = () =>
+        {
+            handle.Dispose();
+            owner.Dispose();
+        };
+
+        AddDisposable(dispose);
+
+        return ptr;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe T* AsPointer<T>(Span<T> span)
+        where T : unmanaged
+    {
+        return (T*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
+    }
+
+    public unsafe Span<byte> RentUtf8(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return Span<byte>.Empty;
+
+        byte[]? arr = null;
+
+        try
+        {
+            Span<byte> bytes = text.Length <= 256 ? stackalloc byte[text.Length] : arr = ArrayPool<byte>.Shared.Rent(text.Length);
+
+            var length = Encoding.UTF8.GetBytes(text, bytes);
+            var utf8Bytes = RentSpan<byte>(length + 1);
+            bytes.CopyTo(utf8Bytes);
+            utf8Bytes[length] = 0;
+
+            return utf8Bytes;
+        }
+        finally
+        {
+            if (arr != null)
+            {
+                ArrayPool<byte>.Shared.Return(arr);
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public unsafe byte* RentUtf8Ptr(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return null;
+
+        var span = RentUtf8(text);
+        return (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddDisposable(Action dispose)
     {
@@ -40,6 +130,12 @@ internal struct MarshalHelper : IDisposable
         {
             var newDisposables = ArrayPool<Action>.Shared.Rent(GetNewCapacity(count + 1));
             disposables.CopyTo(newDisposables, 0);
+
+            if (disposables.Length > 0)
+            {
+                ArrayPool<Action>.Shared.Return(disposables);
+            }
+
             disposables = newDisposables;
         }
 
@@ -58,55 +154,6 @@ internal struct MarshalHelper : IDisposable
         if (newCapacity < capacity) newCapacity = capacity;
 
         return newCapacity;
-    }
-
-    public unsafe T* AllocatePtr<T>(int length)
-        where T : unmanaged
-    {
-        var span = Allocate<T>(length);
-        return AsPointer(span);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe T* AsPointer<T>(Span<T> span)
-        where T : unmanaged
-    {
-        return (T*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
-    }
-
-    public unsafe Span<byte> Utf8(string? text)
-    {
-        if(string.IsNullOrEmpty(text)) return Span<byte>.Empty;
-
-        byte[]? arr = null;
-
-        try
-        {
-            Span<byte> bytes = text.Length <= 256 ? stackalloc byte[text.Length] : arr = ArrayPool<byte>.Shared.Rent(text.Length);
-
-            var length = Encoding.UTF8.GetBytes(text, bytes);
-            var utf8Bytes = Allocate<byte>(length + 1);
-            bytes.CopyTo(utf8Bytes);
-            utf8Bytes[length] = 0;
-
-            return utf8Bytes;
-        }
-        finally
-        {
-            if (arr != null)
-            {
-                ArrayPool<byte>.Shared.Return(arr);
-            }
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public unsafe byte* Utf8Ptr(string? text)
-    {
-        if (string.IsNullOrEmpty(text)) return null;
-
-        var span = Utf8(text);
-        return (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(span));
     }
 
     public unsafe void Dispose()

@@ -23,28 +23,28 @@ internal class Demo : IDisposable
     private IWindow? window;
     private IInputContext? input;
     private IKeyboard? keyboard;
-    private InstanceWrapper? instance;
-    private SurfaceWrapper? surface;
-    private AdapterWrapper? adapter;
-    private DeviceWrapper? device;
+    private Instance? instance;
+    private Surface? surface;
+    private Adapter? adapter;
+    private Device? device;
 
-    private QueueWrapper? queue;
-    private ShaderModuleWrapper? shader;
-    private RenderPipelineWrapper? renderPipeline;
+    private Queue? queue;
+    private ShaderModule? shader;
+    private RenderPipeline? renderPipeline;
 
-    private BufferWrapper? vertexBuffer;
+    private Buffer? vertexBuffer;
     private ulong vertexBufferSize;
 
-    private TextureWrapper? texture;
-    private TextureViewWrapper? textureView;
-    private SamplerWrapper? sampler;
+    private Texture? texture;
+    private TextureView? textureView;
+    private Sampler? sampler;
 
-    private BindGroupWrapper? textureBindGroup;
-    private BindGroupLayoutWrapper? textureSamplerBindGroupLayout;
+    private BindGroup? textureBindGroup;
+    private BindGroupLayout? textureSamplerBindGroupLayout;
 
-    private BufferWrapper? projectionMatrixBuffer;
-    private BindGroupLayoutWrapper? projectionMatrixBindGroupLayout;
-    private BindGroupWrapper? projectionMatrixBindGroup;
+    private Buffer? projectionMatrixBuffer;
+    private BindGroupLayout? projectionMatrixBindGroupLayout;
+    private BindGroup? projectionMatrixBindGroup;
 
 
     public Demo()
@@ -122,7 +122,7 @@ internal class Demo : IDisposable
         input = window!.CreateInput();
         keyboard = input.Keyboards[0];
 
-        instance = new InstanceWrapper();
+        instance = new Instance();
         surface = window!.CreateWebGPUSurface(instance);
 
         adapter = instance.RequestAdapter(surface);
@@ -132,7 +132,7 @@ internal class Demo : IDisposable
 
         SurfaceCapabilities surfaceCapabilities = default;
         surface.GetCapabilities(adapter, ref surfaceCapabilities);
-        surfaceFormats = surfaceCapabilities.Formats;
+        surfaceFormats = surfaceCapabilities.Formats!;
 
 
         queue = device.GetQueue();
@@ -178,7 +178,7 @@ internal class Demo : IDisposable
 
         unsafe
         {
-            device.SetUncapturedErrorCallback(EC);
+            //device.SetUncapturedErrorCallback(EC);
 
 
             { //Create texture and texture view

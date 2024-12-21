@@ -1,11 +1,17 @@
 ﻿namespace SilkWrapped.WebGPU;
-public unsafe partial class InstanceWrapper
+public unsafe partial class Instance
 {
-    public AdapterWrapper RequestAdapter(SurfaceWrapper surface, PowerPreference powerPreference = PowerPreference.HighPerformance)
+    public Instance()
+    {
+        WebGPU = Silk.NET.WebGPU.WebGPU.GetApi();
+        Handle = WebGPU.CreateInstance(null);
+    }
+
+    public Adapter RequestAdapter(Surface surface, PowerPreference powerPreference = PowerPreference.HighPerformance)
     {
         var resetEvent = new ManualResetEvent(false);
 
-        AdapterWrapper? adapter = null;
+        Adapter? adapter = null;
         Exception? exception = null;
 
         RequestAdapterOptions options = new RequestAdapterOptions() { CompatibleSurface = surface, PowerPreference = powerPreference };
@@ -13,7 +19,7 @@ public unsafe partial class InstanceWrapper
         {
             if (status == RequestAdapterStatus.Success)
             {
-                adapter = new AdapterWrapper(this.WebGPU, handle);
+                adapter = new Adapter(this.WebGPU, handle);
             }
             else
             {
@@ -26,7 +32,7 @@ public unsafe partial class InstanceWrapper
 
 
         this.RequestAdapter(in options, callback);
-        
+
         resetEvent.WaitOne();
 
         if (exception != null)
