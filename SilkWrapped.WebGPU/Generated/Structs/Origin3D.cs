@@ -1,6 +1,4 @@
-﻿using Silk.NET.Core.Attributes;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public partial struct Origin3D
 {
     public uint X;

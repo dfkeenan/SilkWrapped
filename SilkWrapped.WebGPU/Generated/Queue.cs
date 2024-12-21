@@ -1,11 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
+﻿using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
 public unsafe readonly struct QueueHandle
@@ -51,7 +44,7 @@ public unsafe partial class Queue : System.IDisposable
         WebGPU.QueueSetLabel(Handle, m.RentUtf8Ptr(label));
     }
 
-    public unsafe void Submit(ReadOnlySpan<CommandBufferHandle> commands)
+    public unsafe void Submit(params ReadOnlySpan<CommandBufferHandle> commands)
     {
         fixed (CommandBufferHandle* commandsPtr = commands)
         {
@@ -92,7 +85,7 @@ public unsafe partial class Queue : System.IDisposable
         WebGPU.QueueRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;

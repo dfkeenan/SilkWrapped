@@ -1,13 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public unsafe readonly struct PipelineLayoutHandle
 {
     private readonly Silk.NET.WebGPU.PipelineLayout* nativeHandle;
@@ -50,7 +41,7 @@ public unsafe partial class PipelineLayout : System.IDisposable
         WebGPU.PipelineLayoutRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;

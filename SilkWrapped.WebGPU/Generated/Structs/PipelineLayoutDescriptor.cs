@@ -1,6 +1,4 @@
-﻿using Silk.NET.Core.Attributes;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public partial struct PipelineLayoutDescriptor
 {
     public unsafe string? Label;

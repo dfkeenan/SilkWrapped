@@ -1,7 +1,4 @@
-﻿using System;
-using Silk.NET.Core.Attributes;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public enum TextureDimension
 {
     [Obsolete("Deprecated in favour of \"Dimension1D\"")]

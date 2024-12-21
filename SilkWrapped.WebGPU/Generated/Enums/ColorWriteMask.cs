@@ -1,7 +1,4 @@
-﻿using System;
-using Silk.NET.Core.Attributes;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 [Flags]
 public enum ColorWriteMask
 {

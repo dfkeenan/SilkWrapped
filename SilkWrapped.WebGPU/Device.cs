@@ -24,6 +24,19 @@ public unsafe partial class Device
         return new ShaderModule(WebGPU, result);
     }
 
+    public unsafe Buffer CreateBuffer<T>(BufferUsage usage, ulong length = 1, bool mappedAtCreation = false)
+        where T : unmanaged
+    {
+        var descriptor = new BufferDescriptor
+        {
+            Size = (ulong)sizeof(T) * length,
+            Usage = usage,
+            MappedAtCreation = mappedAtCreation
+        };
+
+        return CreateBuffer(in descriptor);
+    }
+
     partial void Disposing()
     {
 

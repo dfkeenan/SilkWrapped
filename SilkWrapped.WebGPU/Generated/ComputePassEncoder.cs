@@ -1,13 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public unsafe readonly struct ComputePassEncoderHandle
 {
     private readonly Silk.NET.WebGPU.ComputePassEncoder* nativeHandle;
@@ -66,7 +57,7 @@ public unsafe partial class ComputePassEncoder : System.IDisposable
         WebGPU.ComputePassEncoderPushDebugGroup(Handle, m.RentUtf8Ptr(groupLabel));
     }
 
-    public unsafe void SetBindGroup(uint groupIndex, BindGroupHandle group, ReadOnlySpan<uint> dynamicOffsets)
+    public unsafe void SetBindGroup(uint groupIndex, BindGroupHandle group, params ReadOnlySpan<uint> dynamicOffsets)
     {
         fixed (UInt32* dynamicOffsetsPtr = dynamicOffsets)
         {
@@ -95,7 +86,7 @@ public unsafe partial class ComputePassEncoder : System.IDisposable
         WebGPU.ComputePassEncoderRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;

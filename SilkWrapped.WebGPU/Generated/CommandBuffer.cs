@@ -1,13 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public unsafe readonly struct CommandBufferHandle
 {
     private readonly Silk.NET.WebGPU.CommandBuffer* nativeHandle;
@@ -50,7 +41,7 @@ public unsafe partial class CommandBuffer : System.IDisposable
         WebGPU.CommandBufferRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;

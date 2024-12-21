@@ -1,5 +1,4 @@
 ﻿using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
 
 namespace SilkWrapped.WebGPU;
 public partial struct BufferDescriptor

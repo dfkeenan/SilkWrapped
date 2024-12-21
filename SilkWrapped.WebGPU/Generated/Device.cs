@@ -1,11 +1,5 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
 
 namespace SilkWrapped.WebGPU;
 public unsafe readonly struct DeviceHandle
@@ -633,7 +627,7 @@ public unsafe partial class Device : System.IDisposable
         WebGPU.DeviceRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;

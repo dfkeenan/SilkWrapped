@@ -1,7 +1,4 @@
-﻿using System;
-using Silk.NET.Core.Native;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public readonly struct PfnQueueWorkDoneCallback : IDisposable
 {
     private readonly Silk.NET.WebGPU.PfnQueueWorkDoneCallback callback;

@@ -97,7 +97,7 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
     {
         var parameters = node.ParameterList.Parameters.ToDictionary(n => n.Identifier.ToString());
         Dictionary<string, IParameterSymbol> parameterSymbols = [];
-
+        var lastParameter = node.ParameterList.Parameters.LastOrDefault();
 
         if (node.GetAnnotations("MethodSymbolKey").SingleOrDefault()?.Data is string key)
         {
@@ -134,8 +134,11 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
             var newType = ParseTypeName($"ReadOnlySpan<{pointerType.ElementType.ToString()}> ");
 
             var newParam = pointerParameter.WithType(newType);
-
-            if (pointerParameter.Default is not null)
+            if (pointerParameter == lastParameter)
+            {
+                newParam = newParam.AddModifiers(Token(TriviaList(), SyntaxKind.ParamsKeyword, TriviaList(Space)));
+            }
+            else if (pointerParameter.Default is not null)
             {
                 newParam = newParam.WithDefault(EqualsValueClause(ParseExpression(" default")));
             }

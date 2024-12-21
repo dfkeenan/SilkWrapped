@@ -1,11 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
+﻿using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
 public unsafe readonly struct CommandEncoderHandle
@@ -202,7 +195,7 @@ public unsafe partial class CommandEncoder : System.IDisposable
         WebGPU.CommandEncoderRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;

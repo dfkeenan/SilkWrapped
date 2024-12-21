@@ -322,14 +322,7 @@ internal class Demo : IDisposable
             } //Create bind group for sampler and texture view
 
             { //Create buffer to store projection matrix
-                var descriptor = new BufferDescriptor
-                {
-                    Size = (ulong)sizeof(Matrix4x4),
-                    Usage = BufferUsage.Uniform | BufferUsage.CopyDst,
-                    MappedAtCreation = false
-                };
-
-                projectionMatrixBuffer = device.CreateBuffer(in descriptor);
+                projectionMatrixBuffer = device.CreateBuffer<Matrix4x4>(BufferUsage.Uniform | BufferUsage.CopyDst);
                 UpdateProjectionMatrix();
             } //Create buffer to store projection matrix
 
@@ -368,18 +361,12 @@ internal class Demo : IDisposable
             } //Create bind group for projection matrix 
 
             { //Create vertex buffer
-                var descriptor = new BufferDescriptor
-                {
-                    Size = vertexBufferSize = (ulong)(sizeof(Vertex) * 6),
-                    Usage = BufferUsage.Vertex | BufferUsage.CopyDst
-                };
 
-                vertexBuffer = device.CreateBuffer(in descriptor);
+                vertexBuffer = device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, 6);
+                vertexBufferSize = vertexBuffer.GetSize();
 
                 //Get a queue
                 using var queue = device.GetQueue();
-
-                var data = stackalloc Vertex[6];
 
                 const float xPos = 100;
                 const float yPos = 100;
@@ -387,23 +374,18 @@ internal class Demo : IDisposable
                 const float height = 271;
 
                 //Fill data with a quad with a CCW front face
-                data[0] = new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)); //Top left
-                data[1] = new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0));  //Top right
-                data[2] = new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1));   //Bottom right
-                data[3] = new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)); //Top left
-                data[4] = new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1));   //Bottom right
-                data[5] = new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1));  //Bottom left
+                ReadOnlySpan<Vertex> data =
+                [
+                    new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
+                    new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0)),  //Top right
+                    new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
+                    new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
+                    new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
+                    new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1)),  //Bottom left
+                ];
 
                 //Write the data to the buffer
-                queue.WriteBuffer(vertexBuffer, 0, in data[0], (nuint)vertexBufferSize);
-
-                //Create a new command encoder
-                using var commandEncoder = device.CreateCommandEncoder();
-
-                //Finish the command encoder
-                using var commandBuffer = commandEncoder.Finish();
-
-                queue.Submit([commandBuffer]);
+                queue.WriteBuffer(vertexBuffer, data);
             } //Create vertex buffer
         }
 
@@ -523,14 +505,9 @@ internal class Demo : IDisposable
     {
         using var queue = device!.GetQueue();
 
-        using var commandEncoder = device.CreateCommandEncoder();
         var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window!.Size.X, window.Size.Y, 0, 0, 1);
 
-        queue.WriteBuffer(projectionMatrixBuffer, 0, in projectionMatrix, (nuint)sizeof(Matrix4x4));
-
-        using var commandBuffer = commandEncoder.Finish();
-
-        queue.Submit([commandBuffer]);
+        queue.WriteBuffer(projectionMatrixBuffer, projectionMatrix);
     }
 
     private void OnUpdate(double obj)
@@ -584,13 +561,13 @@ internal class Demo : IDisposable
 
         using var renderPassEncoder = commandEncoder.BeginRenderPass(in renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
-        renderPassEncoder.SetBindGroup(0, textureBindGroup, []);
-        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup, []);
+        renderPassEncoder.SetBindGroup(0, textureBindGroup);
+        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup);
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBufferSize);
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
-        queue!.Submit([commandBuffer]);
+        queue!.Submit(commandBuffer);
         surface.Present();
         window!.SwapBuffers();
     }

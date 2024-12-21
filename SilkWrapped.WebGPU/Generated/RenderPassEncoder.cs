@@ -1,11 +1,4 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Silk.NET.Core;
-using Silk.NET.Core.Attributes;
-using Silk.NET.Core.Contexts;
-using Silk.NET.Core.Native;
+﻿using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
 public unsafe readonly struct RenderPassEncoderHandle
@@ -69,7 +62,7 @@ public unsafe partial class RenderPassEncoder : System.IDisposable
         WebGPU.RenderPassEncoderEndOcclusionQuery(Handle);
     }
 
-    public unsafe void ExecuteBundles(ReadOnlySpan<RenderBundleHandle> bundles)
+    public unsafe void ExecuteBundles(params ReadOnlySpan<RenderBundleHandle> bundles)
     {
         fixed (RenderBundleHandle* bundlesPtr = bundles)
         {
@@ -94,7 +87,7 @@ public unsafe partial class RenderPassEncoder : System.IDisposable
         WebGPU.RenderPassEncoderPushDebugGroup(Handle, m.RentUtf8Ptr(groupLabel));
     }
 
-    public unsafe void SetBindGroup(uint groupIndex, BindGroupHandle group, ReadOnlySpan<uint> dynamicOffsets)
+    public unsafe void SetBindGroup(uint groupIndex, BindGroupHandle group, params ReadOnlySpan<uint> dynamicOffsets)
     {
         fixed (UInt32* dynamicOffsetsPtr = dynamicOffsets)
         {
@@ -155,7 +148,7 @@ public unsafe partial class RenderPassEncoder : System.IDisposable
         WebGPU.RenderPassEncoderRelease(Handle);
     }
 
-    public void  Dispose()
+    public void Dispose()
     {
         if (Handle.IsEmpty)
             return;
