@@ -53,7 +53,7 @@
 //                        {
 //                            MethodName = methodName;
 //                        }
-                
+
 //                        public string MethodName { get; }
 //                    }
 //                }

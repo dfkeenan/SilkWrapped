@@ -1,8 +1,6 @@
 ﻿using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using SilkWrapped.SourceGenerator;
-using SilkWrapped.SourceGenerator.Debug;
 
 var source =
 """
@@ -35,7 +33,7 @@ var types = new[]
 };
 
 var metadataReferences = AppDomain.CurrentDomain.GetAssemblies().Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
-  
+
 var compilation = CSharpCompilation.Create("compilation",
                 new[] { CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest)) },
                 metadataReferences,
