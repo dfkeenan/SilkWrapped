@@ -1,9 +1,17 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 
 internal class AddObjectModelDispose : ContextAwareCSharpSyntaxRewriter
 {
+
+    public const string DefaultDisposalMethodNamePattern = ".*(Release|Drop|Destroy).*";
+    public required string DisposalMethodNamePattern { get; set; } = DefaultDisposalMethodNamePattern;
+
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> Priority { get; } = [];
+
     public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
     {
 
@@ -11,22 +19,22 @@ internal class AddObjectModelDispose : ContextAwareCSharpSyntaxRewriter
 
         if (handleType is null) return node;
 
-        var disposalMethods = node.Members.OfType<MethodDeclarationSyntax>()
-                                            .Where(m => Regex.IsMatch(m.Identifier.Text, Context.Generator.DisposalMethodNamePattern))
-                                            .ToList();
+        var disposalMethods = (from member in node.Members.OfType<MethodDeclarationSyntax>()
+                               let match = Regex.Match(member.Identifier.Text, DisposalMethodNamePattern)
+                               where match.Success
+                               select (member, match.Groups[1].Value)).ToLookup(i => i.Value, i => i.member);
 
         if (disposalMethods.Count == 0) return node;
 
+        var disposalMethod = Priority.SelectMany(p => disposalMethods[p]).FirstOrDefault();
+        if (disposalMethod is null) return node;
 
         var disposeMethodStatements = new SyntaxList<StatementSyntax>();
         disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("if (Handle.IsEmpty) return;"));
         disposeMethodStatements = disposeMethodStatements.Add(ParseStatement("Disposing();"));
 
-        foreach (var disposalMethod in disposalMethods)
-        {
-            string statement = $"{disposalMethod.Identifier.Text}();";
-            disposeMethodStatements = disposeMethodStatements.Add(ParseStatement(statement));
-        }
+        string statement = $"{disposalMethod.Identifier.Text}();";
+        disposeMethodStatements = disposeMethodStatements.Add(ParseStatement(statement));
 
         if (TypeName(handleType) == Context.ApiOwnerTypeSymbol.Name)
         {

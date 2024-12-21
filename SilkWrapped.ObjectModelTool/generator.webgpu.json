@@ -3,7 +3,6 @@
   "ApiTypeName": "Silk.NET.WebGPU.WebGPU",
   "ApiOwnerTypeName": "Silk.NET.WebGPU.Instance",
   "ConstructionMethodNamePattern": ".*(Create|Finish|Acquire).*",
-  "DisposalMethodNamePattern": ".*(Release).*",
   "HandleTypeNameExclusionPattern": "(Pfn).*|.*Descriptor|InstanceFeatures|Future|SurfaceCapabilities",
 
   "ObjectModelNameFormatString": "{0}",
@@ -151,7 +150,9 @@
           "$type": "SimplifyMethodSignature"
         },
         {
-          "$type": "AddObjectModelDispose"
+          "$type": "AddObjectModelDispose",
+          "DisposalMethodNamePattern": ".*(Release|Destroy).*",
+          "Priority": [ "Destroy", "Release" ]
         }
       ]
     }

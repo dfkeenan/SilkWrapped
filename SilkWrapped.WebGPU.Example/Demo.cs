@@ -1,9 +1,8 @@
 ﻿using System.Numerics;
+using System.Runtime.CompilerServices;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace SilkWrapped.WebGPU.Example;
 internal class Demo : IDisposable
@@ -20,15 +19,14 @@ internal class Demo : IDisposable
         public Vector2 TexCoord;
     }
 
-    private IWindow? window;
+    private IWindow window = default!;
     private IInputContext? input;
     private IKeyboard? keyboard;
-    private Instance? instance;
-    private Surface? surface;
-    private Adapter? adapter;
-    private Device? device;
 
-    private Queue? queue;
+
+    private DeviceManager deviceManager = default!;
+
+
     private ShaderModule? shader;
     private RenderPipeline? renderPipeline;
 
@@ -49,8 +47,27 @@ internal class Demo : IDisposable
 
     public Demo()
     {
+        var options = WebGPUWindowOptions.Default with
+        {
+            Size = new Vector2D<int>(800, 600),
+            Title = "WebGPU with Silk.NET",
+        };
 
+        window = Window.Create(options);
+
+        //Assign events.
+        window.Load += OnLoad;
+        window.Update += OnUpdate;
+        window.Render += OnRender;
+        window.FramebufferResize += FramebufferResize;
     }
+
+    internal void Run()
+    {
+        //Run the window.
+        window.Run();
+    }
+
     public void Dispose()
     {
         renderPipeline?.Dispose();
@@ -66,78 +83,25 @@ internal class Demo : IDisposable
         texture?.Dispose();
         sampler?.Dispose();
         shader?.Dispose();
-        queue?.Dispose();
-        device?.Dispose();
-        adapter?.Dispose();
-        surface?.Dispose();
-        instance?.Dispose();
+        deviceManager?.Dispose();
         input?.Dispose();
         window?.Dispose();
     }
 
-    internal void Run()
+    private void FramebufferResize(Vector2D<int> size)
     {
-        var options = WindowOptions.Default with
-        {
-            API = GraphicsAPI.None,
-            ShouldSwapAutomatically = false,
-            IsContextControlDisabled = true,
-            Size = new Vector2D<int>(800, 600),
-            Title = "WebGPU with Silk.NET",
-        };
-
-        window = Window.Create(options);
-
-        //Assign events.
-        window.Load += OnLoad;
-        window.Update += OnUpdate;
-        window.Render += OnRender;
-        window.FramebufferResize += FramebufferResize;
-
-        //Run the window.
-        window.Run();
-    }
-
-    private void FramebufferResize(Vector2D<int> obj)
-    {
-        CreateSwapChain();
+        deviceManager.CreateSwapChain();
         UpdateProjectionMatrix();
     }
 
-    private static unsafe void DV(DeviceLostReason reason, string? message, void* userdata)
-    {
-
-    }
-
-    private static unsafe void EC(ErrorType reason, string? message, void* userdata)
-    {
-
-    }
-
-
-    private TextureFormat[] surfaceFormats;
-
     private void OnLoad()
     {
-        input = window!.CreateInput();
+        input = window.CreateInput();
         keyboard = input.Keyboards[0];
 
-        instance = new Instance();
-        surface = window!.CreateWebGPUSurface(instance);
+        deviceManager = new DeviceManager(window!);
 
-        adapter = instance.RequestAdapter(surface);
-
-
-        device = adapter.RequestDevice();
-
-        SurfaceCapabilities surfaceCapabilities = default;
-        surface.GetCapabilities(adapter, ref surfaceCapabilities);
-        surfaceFormats = surfaceCapabilities.Formats!;
-
-
-        queue = device.GetQueue();
-
-        CreateSwapChain();
+        deviceManager.CreateSwapChain();
 
         var shaderCode =
             """
@@ -174,110 +138,30 @@ internal class Demo : IDisposable
             }
             """;
 
-        shader = device.CreateShaderModuleWGSL(shaderCode);
+        shader = deviceManager.Device.CreateShaderModuleWGSL(shaderCode);
 
-        unsafe
-        {
-            //device.SetUncapturedErrorCallback(EC);
+        texture = deviceManager.Device.LoadTexture("silk.png", TextureFormat.Rgba8Unorm);
+        textureView = texture.CreateView();
 
+        { //Create sampler
+            var descriptor = new SamplerDescriptor
+            {
+                Compare = CompareFunction.Undefined,
+                MipmapFilter = MipmapFilterMode.Linear,
+                MagFilter = FilterMode.Linear,
+                MinFilter = FilterMode.Linear,
+                MaxAnisotropy = 1
+            };
 
-            { //Create texture and texture view
-                using var image = Image.Load<Rgba32>("silk.png");
+            sampler = deviceManager.Device.CreateSampler(in descriptor);
+        } //Create sampler
 
-                var viewFormat = TextureFormat.Rgba8Unorm;
-
-                var descriptor = new TextureDescriptor
-                {
-                    Size = new Extent3D((uint)image.Width, (uint)image.Height, 1),
-                    Format = TextureFormat.Rgba8Unorm,
-                    Usage = TextureUsage.CopyDst | TextureUsage.TextureBinding,
-                    MipLevelCount = 1,
-                    SampleCount = 1,
-                    Dimension = TextureDimension.Dimension2D,
-                    ViewFormats = [viewFormat],
-                };
-
-                texture = device.CreateTexture(in descriptor);
-
-                var viewDescriptor = new TextureViewDescriptor()
-                {
-                    Format = TextureFormat.Rgba8Unorm,
-                    Dimension = TextureViewDimension.Dimension2D,
-                    Aspect = TextureAspect.All,
-                    MipLevelCount = 1,
-                    ArrayLayerCount = 1,
-                    BaseArrayLayer = 0,
-                    BaseMipLevel = 0
-                };
-
-                textureView = texture.CreateView(in viewDescriptor);
-
-                using var queue = device.GetQueue();
-
-                using var commandEncoder = device.CreateCommandEncoder();
-
-                var layout = new TextureDataLayout
-                {
-                    BytesPerRow = (uint)(image.Width * sizeof(Rgba32)),
-                    RowsPerImage = (uint)image.Height
-                };
-                // layout.Offset = layout.BytesPerRow * (uint) i;
-
-                var extent = new Extent3D
-                {
-                    Width = (uint)image.Width,
-                    Height = 1,
-                    DepthOrArrayLayers = 1
-                };
-
-                image.ProcessPixelRows
-                (
-                    x =>
-                    {
-                        for (var i = 0; i < x.Height; i++)
-                        {
-                            var imageRow = x.GetRowSpan(i);
-
-                            var imageCopyTexture = new ImageCopyTexture
-                            {
-                                Texture = texture,
-                                Aspect = TextureAspect.All,
-                                MipLevel = 0,
-                                Origin = new Origin3D(0, (uint)i, 0)
-                            };
-                            //fixed (void* dataPtr = imageRow)
-                            queue.WriteTexture(in imageCopyTexture, in imageRow.GetPinnableReference(), (nuint)(sizeof(Rgba32) * imageRow.Length), in layout, in extent);
-                        }
-                    }
-                );
-
-                using var commandBuffer = commandEncoder.Finish();
-
-                queue.Submit([commandBuffer]);
-            } //Create texture and texture view
-
-
-
-
-            { //Create sampler
-                var descriptor = new SamplerDescriptor
-                {
-                    Compare = CompareFunction.Undefined,
-                    MipmapFilter = MipmapFilterMode.Linear,
-                    MagFilter = FilterMode.Linear,
-                    MinFilter = FilterMode.Linear,
-                    MaxAnisotropy = 1
-                };
-
-                sampler = device.CreateSampler(in descriptor);
-            } //Create sampler
-
-            { //Create bind group for sampler and textureview
-                var layoutDescriptor = new BindGroupLayoutDescriptor
-                {
-                    Entries =
-                    [
-                        new BindGroupLayoutEntry
+        { //Create bind group for sampler and textureview
+            var layoutDescriptor = new BindGroupLayoutDescriptor
+            {
+                Entries =
+                [
+                    new BindGroupLayoutEntry
                         {
                             Binding = 0,
                             Texture = new TextureBindingLayout
@@ -297,14 +181,14 @@ internal class Demo : IDisposable
                             },
                             Visibility = ShaderStage.Fragment
                         }
-                    ]
-                };
+                ]
+            };
 
-                textureSamplerBindGroupLayout = device.CreateBindGroupLayout(in layoutDescriptor);
+            textureSamplerBindGroupLayout = deviceManager.Device.CreateBindGroupLayout(in layoutDescriptor);
 
-                var descriptor = new BindGroupDescriptor
-                {
-                    Entries = [new BindGroupEntry
+            var descriptor = new BindGroupDescriptor
+            {
+                Entries = [new BindGroupEntry
                                 {
                                     Binding = 0,
                                     TextureView = textureView
@@ -314,69 +198,69 @@ internal class Demo : IDisposable
                                     Binding = 1,
                                     Sampler = sampler
                                 }],
-                    Layout = textureSamplerBindGroupLayout
-                };
+                Layout = textureSamplerBindGroupLayout
+            };
 
-                textureBindGroup = device.CreateBindGroup(in descriptor);
+            textureBindGroup = deviceManager.Device.CreateBindGroup(in descriptor);
 
-            } //Create bind group for sampler and texture view
+        } //Create bind group for sampler and texture view
 
-            { //Create buffer to store projection matrix
-                projectionMatrixBuffer = device.CreateBuffer<Matrix4x4>(BufferUsage.Uniform | BufferUsage.CopyDst);
-                UpdateProjectionMatrix();
-            } //Create buffer to store projection matrix
+        { //Create buffer to store projection matrix
+            projectionMatrixBuffer = deviceManager.Device.CreateBuffer<Matrix4x4>(BufferUsage.Uniform | BufferUsage.CopyDst);
+            UpdateProjectionMatrix();
+        } //Create buffer to store projection matrix
 
-            { //Create bind group for projection matrix
-                var entry = new BindGroupLayoutEntry
+        { //Create bind group for projection matrix
+            var entry = new BindGroupLayoutEntry
+            {
+                Binding = 0,
+                Buffer = new BufferBindingLayout
                 {
-                    Binding = 0,
-                    Buffer = new BufferBindingLayout
-                    {
-                        Type = BufferBindingType.Uniform,
-                        MinBindingSize = (ulong)sizeof(Matrix4x4)
-                    },
-                    Visibility = ShaderStage.Vertex,
-                };
+                    Type = BufferBindingType.Uniform,
+                    MinBindingSize = (ulong)Unsafe.SizeOf<Matrix4x4>()
+                },
+                Visibility = ShaderStage.Vertex,
+            };
 
-                var projectionMatrixLayoutDescriptor = new BindGroupLayoutDescriptor
-                {
-                    Entries = [entry]
-                };
+            var projectionMatrixLayoutDescriptor = new BindGroupLayoutDescriptor
+            {
+                Entries = [entry]
+            };
 
-                projectionMatrixBindGroupLayout = device.CreateBindGroupLayout(in projectionMatrixLayoutDescriptor);
+            projectionMatrixBindGroupLayout = deviceManager.Device.CreateBindGroupLayout(in projectionMatrixLayoutDescriptor);
 
-                var bindGroupEntry = new BindGroupEntry
-                {
-                    Binding = 0,
-                    Buffer = projectionMatrixBuffer,
-                    Size = (ulong)sizeof(Matrix4x4)
-                };
+            var bindGroupEntry = new BindGroupEntry
+            {
+                Binding = 0,
+                Buffer = projectionMatrixBuffer,
+                Size = (ulong)Unsafe.SizeOf<Matrix4x4>()
+            };
 
-                BindGroupDescriptor projectionMatrixBindGroupDescriptor = new BindGroupDescriptor
-                {
-                    Entries = [bindGroupEntry],
-                    Layout = projectionMatrixBindGroupLayout
-                };
-                projectionMatrixBindGroup = device.CreateBindGroup(in projectionMatrixBindGroupDescriptor);
-            } //Create bind group for projection matrix 
+            BindGroupDescriptor projectionMatrixBindGroupDescriptor = new BindGroupDescriptor
+            {
+                Entries = [bindGroupEntry],
+                Layout = projectionMatrixBindGroupLayout
+            };
+            projectionMatrixBindGroup = deviceManager.Device.CreateBindGroup(in projectionMatrixBindGroupDescriptor);
+        } //Create bind group for projection matrix 
 
-            { //Create vertex buffer
+        { //Create vertex buffer
 
-                vertexBuffer = device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, 6);
-                vertexBufferSize = vertexBuffer.GetSize();
+            vertexBuffer = deviceManager.Device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, 6);
+            vertexBufferSize = vertexBuffer.GetSize();
 
-                //Get a queue
-                using var queue = device.GetQueue();
+            //Get a queue
+            using var queue = deviceManager.Device.GetQueue();
 
-                const float xPos = 100;
-                const float yPos = 100;
-                const float width = 271;
-                const float height = 271;
+            const float xPos = 100;
+            const float yPos = 100;
+            const float width = 271;
+            const float height = 271;
 
-                //Fill data with a quad with a CCW front face
-                ReadOnlySpan<Vertex> data =
-                [
-                    new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
+            //Fill data with a quad with a CCW front face
+            ReadOnlySpan<Vertex> data =
+            [
+                new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
                     new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0)),  //Top right
                     new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
                     new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
@@ -384,10 +268,9 @@ internal class Demo : IDisposable
                     new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1)),  //Bottom left
                 ];
 
-                //Write the data to the buffer
-                queue.WriteBuffer(vertexBuffer, data);
-            } //Create vertex buffer
-        }
+            //Write the data to the buffer
+            queue.WriteBuffer(vertexBuffer, data);
+        } //Create vertex buffer
 
 
         CreateRenderPipeline();
@@ -408,12 +291,12 @@ internal class Demo : IDisposable
                 new VertexAttribute
                 {
                     Format = VertexFormat.Float32x2,
-                    Offset = (ulong)sizeof(Vector2),
+                    Offset = (ulong)Unsafe.SizeOf<Vector2>(),
                     ShaderLocation = 1
                 }
             ],
             StepMode = VertexStepMode.Vertex,
-            ArrayStride = (ulong)sizeof(Vertex)
+            ArrayStride = (ulong)Unsafe.SizeOf<Vertex>()
         };
 
         var blendState = new BlendState
@@ -434,7 +317,7 @@ internal class Demo : IDisposable
 
         var colorTargetState = new ColorTargetState
         {
-            Format = surfaceFormats[0],
+            Format = deviceManager.DefaultSurfaceFormat,
             Blend = blendState,
             WriteMask = ColorWriteMask.All
         };
@@ -455,7 +338,7 @@ internal class Demo : IDisposable
             ]
         };
 
-        using var pipelineLayout = device!.CreatePipelineLayout(in pipelineLayoutDescriptor);
+        using var pipelineLayout = deviceManager.Device!.CreatePipelineLayout(in pipelineLayoutDescriptor);
 
         var renderPipelineDescriptor = new RenderPipelineDescriptor
         {
@@ -483,27 +366,12 @@ internal class Demo : IDisposable
             Layout = pipelineLayout
         };
 
-        renderPipeline = device.CreateRenderPipeline(in renderPipelineDescriptor);
-    }
-
-    private unsafe void CreateSwapChain()
-    {
-        var surfaceConfiguration = new SurfaceConfiguration
-        {
-            Usage = TextureUsage.RenderAttachment,
-            Format = surfaceFormats[0],
-            PresentMode = PresentMode.Fifo,
-            Device = device,
-            Width = (uint)window!.FramebufferSize.X,
-            Height = (uint)window.FramebufferSize.Y
-        };
-
-        surface!.Configure(in surfaceConfiguration);
+        renderPipeline = deviceManager.Device.CreateRenderPipeline(in renderPipelineDescriptor);
     }
 
     private unsafe void UpdateProjectionMatrix()
     {
-        using var queue = device!.GetQueue();
+        using var queue = deviceManager.Device!.GetQueue();
 
         var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window!.Size.X, window.Size.Y, 0, 0, 1);
 
@@ -520,26 +388,8 @@ internal class Demo : IDisposable
 
     private unsafe void OnRender(double obj)
     {
-        var (status, surfaceTexture) = surface!.GetCurrentTexture();
-        switch (status)
-        {
-            case SurfaceGetCurrentTextureStatus.Success:
-                break;
-            case SurfaceGetCurrentTextureStatus.Timeout:
-            case SurfaceGetCurrentTextureStatus.Outdated:
-            case SurfaceGetCurrentTextureStatus.Lost:
-                // Recreate swapchain,
-                surfaceTexture.Dispose();
-                CreateSwapChain();
-                // Skip this frame
-                return;
-            case SurfaceGetCurrentTextureStatus.OutOfMemory:
-            case SurfaceGetCurrentTextureStatus.DeviceLost:
-            case SurfaceGetCurrentTextureStatus.Force32:
-                throw new Exception($"What is going on bros... {status}");
-        }
-
-        using var surfaceTextureView = surfaceTexture.CreateView();
+        using var surfaceTextureView = deviceManager.GetCurrentSurfaceTextureView();
+        if (surfaceTextureView is null) return;
 
         var renderPassDesc = new RenderPassDescriptor
         {
@@ -547,7 +397,7 @@ internal class Demo : IDisposable
             [
                 new RenderPassColorAttachment
                 {
-                    ClearValue = new(1, 1, 1, 1),
+                    ClearValue = new(0, 0, 0, 1),
                     //DepthSlice = 0,
                     LoadOp = LoadOp.Clear,
                     StoreOp = StoreOp.Store,
@@ -557,7 +407,7 @@ internal class Demo : IDisposable
             ],
         };
 
-        using var commandEncoder = device!.CreateCommandEncoder();
+        using var commandEncoder = deviceManager.Device!.CreateCommandEncoder();
 
         using var renderPassEncoder = commandEncoder.BeginRenderPass(in renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
@@ -567,8 +417,8 @@ internal class Demo : IDisposable
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
-        queue!.Submit(commandBuffer);
-        surface.Present();
+        deviceManager.Queue!.Submit(commandBuffer);
+        deviceManager.Surface.Present();
         window!.SwapBuffers();
     }
 }

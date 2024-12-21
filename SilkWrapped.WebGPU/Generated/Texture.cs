@@ -115,7 +115,7 @@ public unsafe partial class Texture : System.IDisposable
         if (Handle.IsEmpty)
             return;
         Disposing();
-        Release();
+        Destroy();
         Handle = default;
         Disposed();
     }

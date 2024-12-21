@@ -63,7 +63,7 @@ public unsafe partial class QuerySet : System.IDisposable
         if (Handle.IsEmpty)
             return;
         Disposing();
-        Release();
+        Destroy();
         Handle = default;
         Disposed();
     }

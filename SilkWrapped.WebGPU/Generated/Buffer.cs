@@ -97,7 +97,7 @@ public unsafe partial class Buffer : System.IDisposable
         if (Handle.IsEmpty)
             return;
         Disposing();
-        Release();
+        Destroy();
         Handle = default;
         Disposed();
     }
