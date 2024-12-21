@@ -59,6 +59,7 @@ internal class Demo : IDisposable
         window.Load += OnLoad;
         window.Update += OnUpdate;
         window.Render += OnRender;
+        window.Closing += OnClosing;
         window.FramebufferResize += FramebufferResize;
     }
 
@@ -66,6 +67,11 @@ internal class Demo : IDisposable
     {
         //Run the window.
         window.Run();
+    }
+
+    private void OnClosing()
+    {
+        Dispose();
     }
 
     public void Dispose()
@@ -85,7 +91,9 @@ internal class Demo : IDisposable
         shader?.Dispose();
         deviceManager?.Dispose();
         input?.Dispose();
+        input = null;
         window?.Dispose();
+        window = null!;
     }
 
     private void FramebufferResize(Vector2D<int> size)
