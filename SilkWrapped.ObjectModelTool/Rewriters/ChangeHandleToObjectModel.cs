@@ -5,7 +5,7 @@ internal class ChangeHandleToObjectModel : ContextAwareCSharpSyntaxRewriter
 {
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        if (TypeName(node.ReturnType) is string returnTypeName && 
+        if (TypeName(node.ReturnType) is string returnTypeName &&
             Context.TryGetObjectTypeName(returnTypeName, out var objectTypeName))
         {
             var statements = node.Body!.Statements;
@@ -33,7 +33,7 @@ internal class ChangeHandleToObjectModel : ContextAwareCSharpSyntaxRewriter
 
         var result = new List<ISymbol>();
 
-        var referenceGroups = referenceLocations.GroupBy(r => r.Document, r=> r.Location);
+        var referenceGroups = referenceLocations.GroupBy(r => r.Document, r => r.Location);
 
         foreach (var group in referenceGroups)
         {
@@ -53,8 +53,8 @@ internal class ChangeHandleToObjectModel : ContextAwareCSharpSyntaxRewriter
 
                 symbol = memberSyntax switch
                 {
-                    PropertyDeclarationSyntax propertyDeclaration 
-                        when semanticModel.GetDeclaredSymbol(propertyDeclaration) is IPropertySymbol propertySymbol && 
+                    PropertyDeclarationSyntax propertyDeclaration
+                        when semanticModel.GetDeclaredSymbol(propertyDeclaration) is IPropertySymbol propertySymbol &&
                              SymbolEqualityComparer.Default.Equals(propertySymbol.Type, typeSymbol) => propertySymbol,
                     FieldDeclarationSyntax fieldDeclaration
                         when semanticModel.GetDeclaredSymbol(fieldDeclaration) is IFieldSymbol fieldSymbol &&

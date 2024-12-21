@@ -1,5 +1,4 @@
-﻿using Humanizer;
-using SilkWrapped.SourceGenerator;
+﻿using SilkWrapped.SourceGenerator;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 
@@ -75,7 +74,7 @@ internal class ImplemementApiMethod : ContextAwareCSharpSyntaxRewriter
 
     }
 
-    
 
-   
+
+
 }

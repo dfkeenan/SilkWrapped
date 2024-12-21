@@ -1,6 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class MakeRefStruct : CSharpSyntaxRewriter
 {
     private static readonly SyntaxToken refToken = ParseToken("ref ");

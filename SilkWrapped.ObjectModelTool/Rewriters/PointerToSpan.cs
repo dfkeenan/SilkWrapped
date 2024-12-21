@@ -1,17 +1,45 @@
-﻿using Humanizer;
-using Microsoft.CodeAnalysis.CSharp;
+﻿using System.Diagnostics.CodeAnalysis;
+using Humanizer;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
-internal class PointerToSpan : CSharpSyntaxRewriter
+internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
 {
 
     private readonly Dictionary<string, FieldDeclarationSyntax?> fieldUpdates = [];
     private readonly List<string> conditionReplacements = [];
     private readonly List<string> conditionRemovals = [];
+    private readonly List<string> fixedStatements = [];
     private readonly Dictionary<string, string> argumentReplacements = [];
+    private readonly Dictionary<string, IMethodSymbol> methodSymbols = [];
+
+    [return: NotNullIfNotNull("node")]
+    public override SyntaxNode? Visit(SyntaxNode? node, GeneratorTransformContext context)
+    {
+        if (context.Compilation!.GetSemanticModel(node.SyntaxTree) is SemanticModel semanticModel)
+        {
+            methodSymbols.Clear();
+            var methods = node.DescendantNodes().OfType<BaseMethodDeclarationSyntax>();
+
+            node = node.ReplaceNodes(methods, (old, updated) =>
+            {
+                if (semanticModel.GetDeclaredSymbol(old) is IMethodSymbol methodSymbol)
+                {
+                    var key = Guid.NewGuid().ToString();
+                    updated = updated.WithAdditionalAnnotations(new SyntaxAnnotation("MethodSymbolKey", key));
+                    methodSymbols.Add(key, methodSymbol);
+                }
+
+                return updated;
+            });
+
+        }
+
+        return base.Visit(node, context);
+    }
 
     public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)
     {
+
         bool makeRef = false;
 
         var fields = node.Members.OfType<FieldDeclarationSyntax>()
@@ -68,16 +96,32 @@ internal class PointerToSpan : CSharpSyntaxRewriter
         where T : BaseMethodDeclarationSyntax
     {
         var parameters = node.ParameterList.Parameters.ToDictionary(n => n.Identifier.ToString());
+        Dictionary<string, IParameterSymbol> parameterSymbols = [];
+
+
+        if (node.GetAnnotations("MethodSymbolKey").SingleOrDefault()?.Data is string key)
+        {
+            if (methodSymbols.TryGetValue(key, out var methodSymbol))
+            {
+                foreach (var symbol in methodSymbol.Parameters)
+                {
+                    parameterSymbols.Add(symbol.Name, symbol);
+                }
+            }
+        }
 
         conditionReplacements.Clear();
         conditionRemovals.Clear();
         argumentReplacements.Clear();
+        fixedStatements.Clear();
 
         foreach (var parameter in parameters.Keys.Where(k => k.EndsWith("Count")))
         {
             var pointerName = parameter.Substring(0, parameter.Length - "Count".Length).Pluralize();
 
             if (!parameters.TryGetValue(pointerName, out var pointerParameter)) continue;
+
+            if (!parameterSymbols.TryGetValue(pointerName, out var pointerParameterSymbol)) continue;
 
             //Remove non-pointer overloads
             if (pointerParameter.Modifiers.Any(m => m.IsKind(SyntaxKind.ReferenceKeyword) || m.IsKind(SyntaxKind.InKeyword)))
@@ -109,6 +153,60 @@ internal class PointerToSpan : CSharpSyntaxRewriter
             conditionReplacements.Add(pointerName);
             conditionRemovals.Add(parameter);
             argumentReplacements[parameter] = $"({countParameterNode.Type!.ToString()}){pointerName}.Length";
+
+            var paramterType = (IPointerTypeSymbol)pointerParameterSymbol.Type;
+            if (paramterType.PointedAtType is INamedTypeSymbol namedType)
+            {
+                var name = $"{pointerParameterSymbol.Name}Ptr";
+
+                if (Context.IsBlittable(namedType))
+                {
+                    if (Context.IsHandleType(namedType, out var handleType))
+                    {
+
+                        fixedStatements.Add($"fixed ({namedType.Name}* {name} = {pointerName})");
+                        argumentReplacements[pointerName] = $"({handleType.ToDisplayString()}**){name}";
+                    }
+                    else if (Context.TryGetApiTypeSymbol(namedType.Name, out var apiNamedTypeSymbol))
+                    {
+                        var apiNamespace = Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString();
+                        var apiType = $"{apiNamespace}.{namedType.Name}";
+
+                        fixedStatements.Add($"fixed ({namedType.Name}* {name} = {pointerName})");
+                        argumentReplacements[pointerName] = $"({apiNamedTypeSymbol.ToDisplayString()}*){name}";
+                    }
+                    else
+                    {
+                        fixedStatements.Add($"fixed ({namedType.Name}* {name} = {pointerName})");
+                        argumentReplacements[pointerName] = $"{name}";
+                    }
+                }
+                else
+                {
+                    //TODO - Currently don't need this
+                }
+            }
+
+            if (fixedStatements.Count > 0)
+            {
+                FixedStatementSyntax? fixedStatementSyntax = null;
+
+                foreach (var statement in fixedStatements)
+                {
+                    var newStatement = ParseStatement(statement) as FixedStatementSyntax;
+
+                    if (fixedStatementSyntax is null)
+                    {
+                        fixedStatementSyntax = newStatement?.WithStatement(node.Body!);
+                    }
+                    else
+                    {
+                        fixedStatementSyntax = newStatement?.WithStatement(fixedStatementSyntax);
+                    }
+                };
+
+                node = (T)node.WithBody(Block(fixedStatementSyntax!));
+            }
         }
         return node;
     }

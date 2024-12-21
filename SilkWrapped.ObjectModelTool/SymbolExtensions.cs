@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using Microsoft.CodeAnalysis;
 
 namespace SilkWrapped.ObjectModelTool;
 internal static class SymbolExtensions

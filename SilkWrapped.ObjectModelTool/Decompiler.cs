@@ -2,7 +2,6 @@
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.Metadata;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace SilkWrapped.ObjectModelTool;
 

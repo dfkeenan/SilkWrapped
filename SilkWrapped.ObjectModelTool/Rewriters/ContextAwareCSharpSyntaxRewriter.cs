@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ContextAwareCSharpSyntaxRewriter : CSharpSyntaxRewriter

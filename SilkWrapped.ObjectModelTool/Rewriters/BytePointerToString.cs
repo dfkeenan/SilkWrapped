@@ -41,6 +41,6 @@ internal class BytePointerToString : CSharpSyntaxRewriter
         return base.VisitParameter(node);
     }
 
-    private bool ShouldChange(string name) 
-        => excludeNames is {Count: 0 } || !excludeNames.Contains(name);
+    private bool ShouldChange(string name)
+        => excludeNames is { Count: 0 } || !excludeNames.Contains(name);
 }

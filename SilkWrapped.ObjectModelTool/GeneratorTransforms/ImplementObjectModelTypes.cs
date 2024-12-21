@@ -1,5 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-using SilkWrapped.ObjectModelTool.Rewriters;
+﻿using SilkWrapped.ObjectModelTool.Rewriters;
 
 namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;
 

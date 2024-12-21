@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ReplaceParameterWithExpression : CSharpSyntaxRewriter, IJsonOnDeserialized

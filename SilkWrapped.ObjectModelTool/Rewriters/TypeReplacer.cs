@@ -1,6 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class TypeReplacer(TypeSyntax fromType, TypeSyntax toType, bool skipConstructor = false) : CSharpSyntaxRewriter
 {
     private readonly TypeSyntax fromType = fromType.WithoutTrivia();

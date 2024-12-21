@@ -1,5 +1,4 @@
 ﻿using System.Text.RegularExpressions;
-using Microsoft.CodeAnalysis.CSharp;
 using SilkWrapped.ObjectModelTool.Rewriters;
 
 namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;

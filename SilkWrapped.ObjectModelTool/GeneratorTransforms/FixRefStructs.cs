@@ -1,7 +1,4 @@
-﻿
-
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using SilkWrapped.ObjectModelTool.Rewriters;
+﻿using SilkWrapped.ObjectModelTool.Rewriters;
 
 namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;
 internal class FixRefStructs : GeneratorTransformBase
@@ -17,7 +14,7 @@ internal class FixRefStructs : GeneratorTransformBase
         {
             foreach (var diagnostic in diagnostics)
             {
-                if(diagnostic.Location.SourceTree is not SyntaxTree sourceTree) continue;
+                if (diagnostic.Location.SourceTree is not SyntaxTree sourceTree) continue;
                 if (context.Project.GetDocumentId(sourceTree) is not DocumentId documentId) continue;
                 var typeSyntax = await context.GetSyntaxRootAsync(documentId, cancellationToken);
 
@@ -41,7 +38,7 @@ internal class FixRefStructs : GeneratorTransformBase
             diagnostics = GetRelevantDiagnostics(context, cancellationToken);
         }
 
-        
+
 
         static IEnumerable<Diagnostic> GetRelevantDiagnostics(GeneratorTransformContext context, CancellationToken cancellationToken)
         {

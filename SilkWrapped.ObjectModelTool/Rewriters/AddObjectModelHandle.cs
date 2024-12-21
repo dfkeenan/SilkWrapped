@@ -1,6 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
 {
     private MemberDeclarationSyntax? handleDeclaratation;
@@ -38,9 +36,9 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
             return base.VisitClassDeclaration(node);
         }
 
-        var handleType = ParseTypeName($"{Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{firstParameter.Type!.ToString()}");
+        var apiHandleType = ParseTypeName($"{Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{firstParameter.Type!.ToString()}");
 
-        handleType = MakeHandleStruct(handleType);
+        var handleType = MakeHandleStruct(apiHandleType);
 
         Context.AddHandle(TypeName(handleType)!, node.Identifier.Text);
 

@@ -1,7 +1,5 @@
 ﻿using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using System.Threading;
-using Microsoft.CodeAnalysis;
 using SilkWrapped.SourceGenerator;
 
 namespace SilkWrapped.ObjectModelTool;
@@ -87,12 +85,12 @@ internal class GeneratorTransformContext
 
     public bool TryGetApiTypeSymbol(string name, [NotNullWhen(true)] out INamedTypeSymbol? namedTypeSymbol)
     {
-        if(apiTypeSymbols.Count == 0)
+        if (apiTypeSymbols.Count == 0)
         {
             var apiNamespace = Compilation?.GetTypesByMetadataName(ApiTypeSymbol.ToDisplayString())
                                       .FirstOrDefault()?.ContainingNamespace;
 
-            foreach(var symbol in apiNamespace?.GetTypeMembers() ?? [])
+            foreach (var symbol in apiNamespace?.GetTypeMembers() ?? [])
             {
                 apiTypeSymbols[symbol.Name] = symbol;
             }
@@ -108,7 +106,7 @@ internal class GeneratorTransformContext
             var generatedNamespaceParts = Project.DefaultNamespace?.Split('.') ?? [];
             var generatedNamespace = Compilation!.GlobalNamespace;
 
-            foreach(var part in generatedNamespaceParts)
+            foreach (var part in generatedNamespaceParts)
             {
                 generatedNamespace = generatedNamespace.GetNamespaceMembers().First(m => m.Name == part);
                 if (generatedNamespace is null) break;
@@ -120,21 +118,76 @@ internal class GeneratorTransformContext
             }
         }
 
-        return generatedTypeSymbols.TryGetValue(name,out namedTypeSymbol);
+        return generatedTypeSymbols.TryGetValue(name, out namedTypeSymbol);
     }
 
     public bool IsGeneratedTypeSymbol(ITypeSymbol typeSymbol)
     {
-        if(typeSymbol is not INamedTypeSymbol namedTypeSymbol) return false;
+        if (typeSymbol is not INamedTypeSymbol namedTypeSymbol) return false;
 
         if (namedTypeSymbol.IsNullableOfT(out var outType))
         {
             namedTypeSymbol = outType!;
         }
 
-        if (TryGetGeneratedTypeSymbol(namedTypeSymbol.Name, out var generatedTypeSymbol) && 
+        if (TryGetGeneratedTypeSymbol(namedTypeSymbol.Name, out var generatedTypeSymbol) &&
             SymbolEqualityComparer.Default.Equals(namedTypeSymbol.ContainingNamespace, generatedTypeSymbol.ContainingNamespace)) return true;
 
+        return false;
+    }
+
+    public bool IsBlittable(IArrayTypeSymbol typeSymbol)
+    {
+        if (typeSymbol.ElementType is INamedTypeSymbol namedTypeSymbol)
+        {
+            return IsBlittable(namedTypeSymbol);
+        }
+
+        return false;
+    }
+
+    public bool IsBlittable(INamedTypeSymbol namedTypeSymbol)
+    {
+        if (namedTypeSymbol.TypeKind == TypeKind.Enum) return true;
+        if (namedTypeSymbol.SpecialType == SpecialType.System_String) return false;
+
+        if (namedTypeSymbol.TypeKind == TypeKind.Struct)
+        {
+            if (IsHandleType(namedTypeSymbol, out _)) return true;
+
+            if (TryGetGeneratedTypeSymbol(namedTypeSymbol.Name, out var generatedType) &&
+               TryGetApiTypeSymbol(namedTypeSymbol.Name, out var apiType))
+            {
+                var apiMembers = apiType.GetMembers().OfType<IFieldSymbol>().ToArray();
+                var generatedMembers = generatedType.GetMembers().OfType<IFieldSymbol>().ToArray();
+
+                if (apiMembers.Length != generatedMembers.Length) return false;
+
+                foreach (var member in generatedMembers)
+                {
+                    if (member.Type is IArrayTypeSymbol) return false;
+                    if (member.Type is not INamedTypeSymbol memberType) return false;
+                    if (!IsBlittable(memberType)) return false;
+                }
+                return true;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool IsHandleType(INamedTypeSymbol namedTypeSymbol, [NotNullWhen(true)] out INamedTypeSymbol? apiTypeSymbol)
+    {
+        if (handleTypes.ContainsKey(namedTypeSymbol.Name))
+        {
+            var apiTypeName = namedTypeSymbol.Name.Substring(0, namedTypeSymbol.Name.Length - "Handle".Length);
+            if (TryGetApiTypeSymbol(apiTypeName, out apiTypeSymbol)) return true;
+        }
+        apiTypeSymbol = null;
         return false;
     }
 

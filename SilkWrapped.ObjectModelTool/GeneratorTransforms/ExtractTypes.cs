@@ -1,6 +1,5 @@
 ﻿using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Microsoft.CodeAnalysis.CSharp;
 using SilkWrapped.ObjectModelTool.Rewriters;
 
 namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;
@@ -76,7 +75,7 @@ internal class ExtractTypes : GeneratorTransformBase
                 await context.UpdateDocumentAsync(item.DocumentId, typeSyntax, cancellationToken);
             }
 
-            
+
         }
 
     }

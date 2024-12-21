@@ -1,16 +1,16 @@
 ﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class SimplifyMethodSignature : ContextAwareCSharpSyntaxRewriter
 {
-    private readonly Dictionary<string, ParameterSyntax> replacementParameters = []; 
+    private readonly Dictionary<string, ParameterSyntax> replacementParameters = [];
     private readonly Dictionary<string, ExpressionSyntax> replacementExpressions = [];
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
         replacementParameters.Clear();
         replacementExpressions.Clear();
 
-        if(node.ParameterList.Parameters is [var parameter])
+        if (node.ParameterList.Parameters is [var parameter])
         {
-            if(TypeName(parameter.Type) is string parameterTypeName &&
+            if (TypeName(parameter.Type) is string parameterTypeName &&
                 Context.TryGetGeneratedTypeSymbol(parameterTypeName, out var parameterType))
             {
                 if (parameterType.GetMembers().OfType<IFieldSymbol>().ToList() is [IFieldSymbol fieldSymbol] &&

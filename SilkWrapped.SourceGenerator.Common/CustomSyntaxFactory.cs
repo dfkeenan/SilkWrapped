@@ -281,6 +281,6 @@ public static class CustomSyntaxFactory
         if (type is NullableTypeSyntax nullableType) return TypeName(nullableType.ElementType);
         if (type is QualifiedNameSyntax qualifiedType) return TypeName(qualifiedType.Right);
 
-        return null;
+        return type?.ToString();
     }
 }

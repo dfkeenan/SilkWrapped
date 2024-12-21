@@ -12,16 +12,16 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
                 case FieldDeclarationSyntax fieldDeclarationSyntax:
                     toRemove.Add(fieldDeclarationSyntax);
                     break;
-                case PropertyDeclarationSyntax propertyDeclarationSyntax: 
-                    toRemove.Add(propertyDeclarationSyntax); 
+                case PropertyDeclarationSyntax propertyDeclarationSyntax:
+                    toRemove.Add(propertyDeclarationSyntax);
                     break;
                 case ConversionOperatorDeclarationSyntax operatorDeclarationSyntax:
                     toRemove.Add(operatorDeclarationSyntax);
                     break;
-                case ConstructorDeclarationSyntax {ParameterList.Parameters: [ParameterSyntax{Type: FunctionPointerTypeSyntax } ,..] } constructorDeclarationSyntax:
+                case ConstructorDeclarationSyntax { ParameterList.Parameters: [ParameterSyntax { Type: FunctionPointerTypeSyntax }, ..] } constructorDeclarationSyntax:
                     toRemove.Add(constructorDeclarationSyntax);
                     break;
-                case MethodDeclarationSyntax {Identifier.Text: "From" } methodDeclarationSyntax:
+                case MethodDeclarationSyntax { Identifier.Text: "From" } methodDeclarationSyntax:
                     delegateName = TypeName(methodDeclarationSyntax.ParameterList.Parameters[0].Type);
                     break;
                 default:
@@ -48,7 +48,7 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
 
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        if(node.Identifier.Text == nameof(IDisposable.Dispose))
+        if (node.Identifier.Text == nameof(IDisposable.Dispose))
         {
             node = node.WithBody(null)
                        .WithExpressionBody(ArrowExpressionClause(ParseExpression("callback.Dispose()")))
@@ -65,7 +65,7 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
             Context.TryGetGeneratedTypeSymbol(typeName, out var apiType) &&
             apiType.DelegateInvokeMethod is IMethodSymbol delegateType)
         {
-            
+
 
             var parameters = delegateType.DeclaringSyntaxReferences.FirstOrDefault()?
                                            .SyntaxTree
@@ -103,7 +103,7 @@ internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
             }
         }
 
-        
+
 
         return base.VisitConstructorDeclaration(node);
     }

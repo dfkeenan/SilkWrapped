@@ -1,6 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
-
-namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ReplaceNamespace(string from, string to) : CSharpSyntaxRewriter
 {
     private NameSyntax toName = ParseName(to);
