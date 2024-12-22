@@ -1,22 +1,34 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Silk.NET.Core;
 
 namespace SilkWrapped.WebGPU;
-public unsafe readonly struct AdapterHandle
+public unsafe readonly struct AdapterHandle : IEquatable<AdapterHandle>
 {
-    private readonly Silk.NET.WebGPU.Adapter* nativeHandle;
+    private readonly nint nativeHandle;
     private AdapterHandle(Silk.NET.WebGPU.Adapter* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.Adapter*(AdapterHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.Adapter*(AdapterHandle handle) => (Silk.NET.WebGPU.Adapter*)handle.nativeHandle;
     public static implicit operator AdapterHandle(Silk.NET.WebGPU.Adapter* handle) => new AdapterHandle(handle);
+    public static bool operator ==(AdapterHandle handle, AdapterHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(AdapterHandle handle, AdapterHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(AdapterHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not AdapterHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class Adapter : System.IDisposable
+public unsafe partial class Adapter : IEquatable<Adapter>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public AdapterHandle Handle { get; private set; }
@@ -130,6 +142,21 @@ public unsafe partial class Adapter : System.IDisposable
         WebGPU.AdapterRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] Adapter? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not Adapter other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

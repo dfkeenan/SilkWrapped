@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct RenderPipelineHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct RenderPipelineHandle : IEquatable<RenderPipelineHandle>
 {
-    private readonly Silk.NET.WebGPU.RenderPipeline* nativeHandle;
+    private readonly nint nativeHandle;
     private RenderPipelineHandle(Silk.NET.WebGPU.RenderPipeline* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.RenderPipeline*(RenderPipelineHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.RenderPipeline*(RenderPipelineHandle handle) => (Silk.NET.WebGPU.RenderPipeline*)handle.nativeHandle;
     public static implicit operator RenderPipelineHandle(Silk.NET.WebGPU.RenderPipeline* handle) => new RenderPipelineHandle(handle);
+    public static bool operator ==(RenderPipelineHandle handle, RenderPipelineHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(RenderPipelineHandle handle, RenderPipelineHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(RenderPipelineHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not RenderPipelineHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class RenderPipeline : System.IDisposable
+public unsafe partial class RenderPipeline : IEquatable<RenderPipeline>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public RenderPipelineHandle Handle { get; private set; }
@@ -47,6 +60,21 @@ public unsafe partial class RenderPipeline : System.IDisposable
         WebGPU.RenderPipelineRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] RenderPipeline? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not RenderPipeline other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

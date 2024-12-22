@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct RenderBundleEncoderHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct RenderBundleEncoderHandle : IEquatable<RenderBundleEncoderHandle>
 {
-    private readonly Silk.NET.WebGPU.RenderBundleEncoder* nativeHandle;
+    private readonly nint nativeHandle;
     private RenderBundleEncoderHandle(Silk.NET.WebGPU.RenderBundleEncoder* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.RenderBundleEncoder*(RenderBundleEncoderHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.RenderBundleEncoder*(RenderBundleEncoderHandle handle) => (Silk.NET.WebGPU.RenderBundleEncoder*)handle.nativeHandle;
     public static implicit operator RenderBundleEncoderHandle(Silk.NET.WebGPU.RenderBundleEncoder* handle) => new RenderBundleEncoderHandle(handle);
+    public static bool operator ==(RenderBundleEncoderHandle handle, RenderBundleEncoderHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(RenderBundleEncoderHandle handle, RenderBundleEncoderHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(RenderBundleEncoderHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not RenderBundleEncoderHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class RenderBundleEncoder : System.IDisposable
+public unsafe partial class RenderBundleEncoder : IEquatable<RenderBundleEncoder>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public RenderBundleEncoderHandle Handle { get; private set; }
@@ -110,6 +123,21 @@ public unsafe partial class RenderBundleEncoder : System.IDisposable
         WebGPU.RenderBundleEncoderRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] RenderBundleEncoder? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not RenderBundleEncoder other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

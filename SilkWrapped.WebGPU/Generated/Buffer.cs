@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct BufferHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct BufferHandle : IEquatable<BufferHandle>
 {
-    private readonly Silk.NET.WebGPU.Buffer* nativeHandle;
+    private readonly nint nativeHandle;
     private BufferHandle(Silk.NET.WebGPU.Buffer* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.Buffer*(BufferHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.Buffer*(BufferHandle handle) => (Silk.NET.WebGPU.Buffer*)handle.nativeHandle;
     public static implicit operator BufferHandle(Silk.NET.WebGPU.Buffer* handle) => new BufferHandle(handle);
+    public static bool operator ==(BufferHandle handle, BufferHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(BufferHandle handle, BufferHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(BufferHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not BufferHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class Buffer : System.IDisposable
+public unsafe partial class Buffer : IEquatable<Buffer>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public BufferHandle Handle { get; private set; }
@@ -92,6 +105,21 @@ public unsafe partial class Buffer : System.IDisposable
         WebGPU.BufferRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] Buffer? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not Buffer other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

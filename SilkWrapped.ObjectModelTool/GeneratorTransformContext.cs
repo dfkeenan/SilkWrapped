@@ -32,6 +32,7 @@ internal class GeneratorTransformContext
     private Dictionary<string, INamedTypeSymbol> apiTypeSymbols = [];
     private Dictionary<string, INamedTypeSymbol> generatedTypeSymbols = [];
     private Dictionary<string, string> handleTypes = [];
+    private Dictionary<string, string> objectTypes = [];
     private readonly HashSet<string> shouldSkipMarshalling = [];
 
     public async Task<GeneratorItem> AddItem(
@@ -200,11 +201,17 @@ internal class GeneratorTransformContext
     public void AddHandle(string handleTypeName, string objectTypeName)
     {
         handleTypes.Add(handleTypeName, objectTypeName);
+        objectTypes.Add(objectTypeName, handleTypeName);
     }
 
     public bool TryGetObjectTypeName(string handleTypeName, [NotNullWhen(true)] out string? objectTypeName)
     {
         return handleTypes.TryGetValue(handleTypeName, out objectTypeName);
+    }
+
+    public bool TryGetHandleTypeName(string objectTypeName, [NotNullWhen(true)] out string? handleTypeName)
+    {
+        return objectTypes.TryGetValue(objectTypeName, out handleTypeName);
     }
 }
 

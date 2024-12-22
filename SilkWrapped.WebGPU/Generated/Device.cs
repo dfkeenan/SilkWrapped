@@ -1,22 +1,34 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Silk.NET.Core;
 
 namespace SilkWrapped.WebGPU;
-public unsafe readonly struct DeviceHandle
+public unsafe readonly struct DeviceHandle : IEquatable<DeviceHandle>
 {
-    private readonly Silk.NET.WebGPU.Device* nativeHandle;
+    private readonly nint nativeHandle;
     private DeviceHandle(Silk.NET.WebGPU.Device* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.Device*(DeviceHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.Device*(DeviceHandle handle) => (Silk.NET.WebGPU.Device*)handle.nativeHandle;
     public static implicit operator DeviceHandle(Silk.NET.WebGPU.Device* handle) => new DeviceHandle(handle);
+    public static bool operator ==(DeviceHandle handle, DeviceHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(DeviceHandle handle, DeviceHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(DeviceHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not DeviceHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class Device : System.IDisposable
+public unsafe partial class Device : IEquatable<Device>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public DeviceHandle Handle { get; private set; }
@@ -627,6 +639,21 @@ public unsafe partial class Device : System.IDisposable
         WebGPU.DeviceRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] Device? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not Device other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct TextureHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct TextureHandle : IEquatable<TextureHandle>
 {
-    private readonly Silk.NET.WebGPU.Texture* nativeHandle;
+    private readonly nint nativeHandle;
     private TextureHandle(Silk.NET.WebGPU.Texture* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.Texture*(TextureHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.Texture*(TextureHandle handle) => (Silk.NET.WebGPU.Texture*)handle.nativeHandle;
     public static implicit operator TextureHandle(Silk.NET.WebGPU.Texture* handle) => new TextureHandle(handle);
+    public static bool operator ==(TextureHandle handle, TextureHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(TextureHandle handle, TextureHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(TextureHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not TextureHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class Texture : System.IDisposable
+public unsafe partial class Texture : IEquatable<Texture>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public TextureHandle Handle { get; private set; }
@@ -110,6 +123,21 @@ public unsafe partial class Texture : System.IDisposable
         WebGPU.TextureRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] Texture? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not Texture other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

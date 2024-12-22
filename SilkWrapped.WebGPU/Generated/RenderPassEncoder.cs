@@ -1,21 +1,33 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
-public unsafe readonly struct RenderPassEncoderHandle
+public unsafe readonly struct RenderPassEncoderHandle : IEquatable<RenderPassEncoderHandle>
 {
-    private readonly Silk.NET.WebGPU.RenderPassEncoder* nativeHandle;
+    private readonly nint nativeHandle;
     private RenderPassEncoderHandle(Silk.NET.WebGPU.RenderPassEncoder* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.RenderPassEncoder*(RenderPassEncoderHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.RenderPassEncoder*(RenderPassEncoderHandle handle) => (Silk.NET.WebGPU.RenderPassEncoder*)handle.nativeHandle;
     public static implicit operator RenderPassEncoderHandle(Silk.NET.WebGPU.RenderPassEncoder* handle) => new RenderPassEncoderHandle(handle);
+    public static bool operator ==(RenderPassEncoderHandle handle, RenderPassEncoderHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(RenderPassEncoderHandle handle, RenderPassEncoderHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(RenderPassEncoderHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not RenderPassEncoderHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class RenderPassEncoder : System.IDisposable
+public unsafe partial class RenderPassEncoder : IEquatable<RenderPassEncoder>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public RenderPassEncoderHandle Handle { get; private set; }
@@ -148,6 +160,21 @@ public unsafe partial class RenderPassEncoder : System.IDisposable
         WebGPU.RenderPassEncoderRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] RenderPassEncoder? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not RenderPassEncoder other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

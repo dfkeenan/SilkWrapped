@@ -64,16 +64,16 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
 
                      public unsafe readonly struct {{handleTypeName}}
                      {
-                        private readonly {{nativeType}} nativeHandle;
+                        private readonly nint nativeHandle;
 
                         private {{handleTypeName}}({{nativeType}} nativeHandle)
                         {
-                            this.nativeHandle = nativeHandle;
+                            this.nativeHandle = (nint)nativeHandle;
                         }
 
                         public bool IsEmpty => nativeHandle == default;
 
-                        public static implicit operator {{nativeType}}({{handleTypeName}} handle) => handle.nativeHandle;
+                        public static implicit operator {{nativeType}}({{handleTypeName}} handle) => ({{nativeType}})handle.nativeHandle;
                         public static implicit operator {{handleTypeName}}({{nativeType}} handle) => new {{handleTypeName}}(handle);
 
                      }

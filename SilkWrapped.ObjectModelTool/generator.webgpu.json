@@ -150,6 +150,9 @@
           "$type": "SimplifyMethodSignature"
         },
         {
+          "$type": "AddEquatableToApi"
+        },
+        {
           "$type": "AddObjectModelDispose",
           "DisposalMethodNamePattern": ".*(Release|Destroy).*",
           "Priority": [ "Destroy", "Release" ]

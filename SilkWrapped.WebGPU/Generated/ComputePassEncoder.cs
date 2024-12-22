@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct ComputePassEncoderHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct ComputePassEncoderHandle : IEquatable<ComputePassEncoderHandle>
 {
-    private readonly Silk.NET.WebGPU.ComputePassEncoder* nativeHandle;
+    private readonly nint nativeHandle;
     private ComputePassEncoderHandle(Silk.NET.WebGPU.ComputePassEncoder* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.ComputePassEncoder*(ComputePassEncoderHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.ComputePassEncoder*(ComputePassEncoderHandle handle) => (Silk.NET.WebGPU.ComputePassEncoder*)handle.nativeHandle;
     public static implicit operator ComputePassEncoderHandle(Silk.NET.WebGPU.ComputePassEncoder* handle) => new ComputePassEncoderHandle(handle);
+    public static bool operator ==(ComputePassEncoderHandle handle, ComputePassEncoderHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(ComputePassEncoderHandle handle, ComputePassEncoderHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(ComputePassEncoderHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not ComputePassEncoderHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class ComputePassEncoder : System.IDisposable
+public unsafe partial class ComputePassEncoder : IEquatable<ComputePassEncoder>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public ComputePassEncoderHandle Handle { get; private set; }
@@ -86,6 +99,21 @@ public unsafe partial class ComputePassEncoder : System.IDisposable
         WebGPU.ComputePassEncoderRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] ComputePassEncoder? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not ComputePassEncoder other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

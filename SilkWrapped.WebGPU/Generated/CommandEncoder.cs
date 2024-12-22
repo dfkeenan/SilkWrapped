@@ -1,21 +1,33 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
-public unsafe readonly struct CommandEncoderHandle
+public unsafe readonly struct CommandEncoderHandle : IEquatable<CommandEncoderHandle>
 {
-    private readonly Silk.NET.WebGPU.CommandEncoder* nativeHandle;
+    private readonly nint nativeHandle;
     private CommandEncoderHandle(Silk.NET.WebGPU.CommandEncoder* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.CommandEncoder*(CommandEncoderHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.CommandEncoder*(CommandEncoderHandle handle) => (Silk.NET.WebGPU.CommandEncoder*)handle.nativeHandle;
     public static implicit operator CommandEncoderHandle(Silk.NET.WebGPU.CommandEncoder* handle) => new CommandEncoderHandle(handle);
+    public static bool operator ==(CommandEncoderHandle handle, CommandEncoderHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(CommandEncoderHandle handle, CommandEncoderHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(CommandEncoderHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not CommandEncoderHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class CommandEncoder : System.IDisposable
+public unsafe partial class CommandEncoder : IEquatable<CommandEncoder>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public CommandEncoderHandle Handle { get; private set; }
@@ -195,6 +207,21 @@ public unsafe partial class CommandEncoder : System.IDisposable
         WebGPU.CommandEncoderRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] CommandEncoder? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not CommandEncoder other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

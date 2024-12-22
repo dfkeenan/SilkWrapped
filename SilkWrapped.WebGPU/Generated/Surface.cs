@@ -1,21 +1,33 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
-public unsafe readonly struct SurfaceHandle
+public unsafe readonly struct SurfaceHandle : IEquatable<SurfaceHandle>
 {
-    private readonly Silk.NET.WebGPU.Surface* nativeHandle;
+    private readonly nint nativeHandle;
     private SurfaceHandle(Silk.NET.WebGPU.Surface* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.Surface*(SurfaceHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.Surface*(SurfaceHandle handle) => (Silk.NET.WebGPU.Surface*)handle.nativeHandle;
     public static implicit operator SurfaceHandle(Silk.NET.WebGPU.Surface* handle) => new SurfaceHandle(handle);
+    public static bool operator ==(SurfaceHandle handle, SurfaceHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(SurfaceHandle handle, SurfaceHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(SurfaceHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not SurfaceHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class Surface : System.IDisposable
+public unsafe partial class Surface : IEquatable<Surface>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public SurfaceHandle Handle { get; private set; }
@@ -119,6 +131,21 @@ public unsafe partial class Surface : System.IDisposable
         WebGPU.SurfaceRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] Surface? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not Surface other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

@@ -1,21 +1,33 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
-public unsafe readonly struct QueueHandle
+public unsafe readonly struct QueueHandle : IEquatable<QueueHandle>
 {
-    private readonly Silk.NET.WebGPU.Queue* nativeHandle;
+    private readonly nint nativeHandle;
     private QueueHandle(Silk.NET.WebGPU.Queue* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.Queue*(QueueHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.Queue*(QueueHandle handle) => (Silk.NET.WebGPU.Queue*)handle.nativeHandle;
     public static implicit operator QueueHandle(Silk.NET.WebGPU.Queue* handle) => new QueueHandle(handle);
+    public static bool operator ==(QueueHandle handle, QueueHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(QueueHandle handle, QueueHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(QueueHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not QueueHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class Queue : System.IDisposable
+public unsafe partial class Queue : IEquatable<Queue>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public QueueHandle Handle { get; private set; }
@@ -85,6 +97,21 @@ public unsafe partial class Queue : System.IDisposable
         WebGPU.QueueRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] Queue? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not Queue other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

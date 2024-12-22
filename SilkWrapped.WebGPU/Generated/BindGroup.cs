@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct BindGroupHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct BindGroupHandle : IEquatable<BindGroupHandle>
 {
-    private readonly Silk.NET.WebGPU.BindGroup* nativeHandle;
+    private readonly nint nativeHandle;
     private BindGroupHandle(Silk.NET.WebGPU.BindGroup* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.BindGroup*(BindGroupHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.BindGroup*(BindGroupHandle handle) => (Silk.NET.WebGPU.BindGroup*)handle.nativeHandle;
     public static implicit operator BindGroupHandle(Silk.NET.WebGPU.BindGroup* handle) => new BindGroupHandle(handle);
+    public static bool operator ==(BindGroupHandle handle, BindGroupHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(BindGroupHandle handle, BindGroupHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(BindGroupHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not BindGroupHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class BindGroup : System.IDisposable
+public unsafe partial class BindGroup : IEquatable<BindGroup>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public BindGroupHandle Handle { get; private set; }
@@ -41,6 +54,21 @@ public unsafe partial class BindGroup : System.IDisposable
         WebGPU.BindGroupRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] BindGroup? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not BindGroup other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)

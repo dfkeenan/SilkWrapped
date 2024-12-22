@@ -1,19 +1,32 @@
-﻿namespace SilkWrapped.WebGPU;
-public unsafe readonly struct QuerySetHandle
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace SilkWrapped.WebGPU;
+public unsafe readonly struct QuerySetHandle : IEquatable<QuerySetHandle>
 {
-    private readonly Silk.NET.WebGPU.QuerySet* nativeHandle;
+    private readonly nint nativeHandle;
     private QuerySetHandle(Silk.NET.WebGPU.QuerySet* nativeHandle)
     {
-        this.nativeHandle = nativeHandle;
+        this.nativeHandle = (nint)nativeHandle;
     }
 
     public bool IsEmpty => nativeHandle == default;
 
-    public static implicit operator Silk.NET.WebGPU.QuerySet*(QuerySetHandle handle) => handle.nativeHandle;
+    public static implicit operator Silk.NET.WebGPU.QuerySet*(QuerySetHandle handle) => (Silk.NET.WebGPU.QuerySet*)handle.nativeHandle;
     public static implicit operator QuerySetHandle(Silk.NET.WebGPU.QuerySet* handle) => new QuerySetHandle(handle);
+    public static bool operator ==(QuerySetHandle handle, QuerySetHandle other) => handle.nativeHandle == other.nativeHandle;
+    public static bool operator !=(QuerySetHandle handle, QuerySetHandle other) => handle.nativeHandle != other.nativeHandle;
+    public bool Equals(QuerySetHandle other) => this == other;
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not QuerySetHandle other)
+            return false;
+        return this == other;
+    }
+
+    public override int GetHashCode() => (int)nativeHandle;
 }
 
-public unsafe partial class QuerySet : System.IDisposable
+public unsafe partial class QuerySet : IEquatable<QuerySet>, System.IDisposable
 {
     public Silk.NET.WebGPU.WebGPU WebGPU { get; }
     public QuerySetHandle Handle { get; private set; }
@@ -58,6 +71,21 @@ public unsafe partial class QuerySet : System.IDisposable
         WebGPU.QuerySetRelease(Handle);
     }
 
+    public bool Equals([NotNullWhen(true)] QuerySet? other)
+    {
+        if (other is null)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override bool Equals([NotNullWhen(true)] object? obj)
+    {
+        if (obj is not QuerySet other)
+            return false;
+        return Handle == other.Handle;
+    }
+
+    public override int GetHashCode() => Handle.GetHashCode();
     public void Dispose()
     {
         if (Handle.IsEmpty)
