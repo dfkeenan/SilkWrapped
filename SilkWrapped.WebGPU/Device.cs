@@ -37,6 +37,28 @@ public unsafe partial class Device
         return CreateBuffer(in descriptor);
     }
 
+    public Sampler CreateSampler(
+        FilterMode filter = FilterMode.Linear, 
+        MipmapFilterMode mipmapFilter = MipmapFilterMode.Linear, 
+        AddressMode addressMode = AddressMode.Repeat, 
+        ushort maxAnsiotropy = 16,
+        string? label = null)
+    {
+        var descriptor = new SamplerDescriptor
+        {
+            Compare = CompareFunction.Undefined,
+            MipmapFilter = mipmapFilter,
+            MagFilter = filter,
+            MinFilter = filter,
+            AddressModeU = addressMode,
+            AddressModeV = addressMode,
+            MaxAnisotropy = maxAnsiotropy,
+            Label = label
+        };
+
+        return CreateSampler(in descriptor);
+    }
+
     partial void Disposing()
     {
 

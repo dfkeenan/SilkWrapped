@@ -145,18 +145,7 @@ internal class Demo : IDisposable
         texture = Graphics.Device.LoadTexture("silk.png", TextureFormat.Rgba8Unorm);
         textureView = texture.CreateView();
 
-        { //Create sampler
-            var descriptor = new SamplerDescriptor
-            {
-                Compare = CompareFunction.Undefined,
-                MipmapFilter = MipmapFilterMode.Linear,
-                MagFilter = FilterMode.Linear,
-                MinFilter = FilterMode.Linear,
-                MaxAnisotropy = 1
-            };
-
-            sampler = Graphics.Device.CreateSampler(in descriptor);
-        } //Create sampler
+        sampler = Graphics.Device.CreateSampler(FilterMode.Linear, MipmapFilterMode.Linear);
 
         { //Create bind group for sampler and textureview
             var layoutDescriptor = new BindGroupLayoutDescriptor
@@ -299,26 +288,10 @@ internal class Demo : IDisposable
             ArrayStride = (ulong)Unsafe.SizeOf<Vertex>()
         };
 
-        var blendState = new BlendState
-        {
-            Color = new BlendComponent
-            {
-                SrcFactor = BlendFactor.SrcAlpha,
-                DstFactor = BlendFactor.OneMinusSrcAlpha,
-                Operation = BlendOperation.Add
-            },
-            Alpha = new BlendComponent
-            {
-                SrcFactor = BlendFactor.One,
-                DstFactor = BlendFactor.OneMinusSrcAlpha,
-                Operation = BlendOperation.Add
-            }
-        };
-
         var colorTargetState = new ColorTargetState
         {
             Format = Graphics.DefaultSurfaceFormat,
-            Blend = blendState,
+            Blend = BlendStates.NonPremultiplied,
             WriteMask = ColorWriteMask.All
         };
 

@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SilkWrapped.WebGPU.Extenstions\SilkWrapped.WebGPU.Extenstions.csproj" />
+    <ProjectReference Include="..\SilkWrapped.WebGPU.Extensions\SilkWrapped.WebGPU.Extensions.csproj" />
     <ProjectReference Include="..\SilkWrapped.WebGPU\SilkWrapped.WebGPU.csproj" />
   </ItemGroup>
 

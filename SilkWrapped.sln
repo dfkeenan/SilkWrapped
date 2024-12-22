@@ -15,7 +15,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SilkWrapped.SourceGenerator
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkWrapped.ObjectModelTool", "SilkWrapped.ObjectModelTool\SilkWrapped.ObjectModelTool.csproj", "{6DC5958E-5205-48ED-BD09-2048DFDF0C31}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkWrapped.WebGPU.Extenstions", "SilkWrapped.WebGPU.Extenstions\SilkWrapped.WebGPU.Extenstions.csproj", "{195A9631-3C76-4265-9EAF-AE4EEA45DF5E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkWrapped.WebGPU.Extensions", "SilkWrapped.WebGPU.Extensions\SilkWrapped.WebGPU.Extensions.csproj", "{195A9631-3C76-4265-9EAF-AE4EEA45DF5E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -25,7 +25,7 @@ public readonly record struct FramebufferSize(uint width, uint height)
     }
 }
 
-public unsafe class GraphicsDeviceManager : IDisposable
+public unsafe partial class GraphicsDeviceManager : IDisposable
 {
     private readonly IView view;
     private readonly DeviceManagerOptions options;
