@@ -24,10 +24,30 @@ public unsafe partial class Device
         return new ShaderModule(WebGPU, result);
     }
 
+    public PipelineLayout CreatePipelineLayout(string label, params ReadOnlySpan<BindGroupLayoutHandle> bindGroupLayouts)
+    {
+        using var m = new MarshalHelper();
+        fixed (BindGroupLayoutHandle* bindGroupLayoutsPtr = bindGroupLayouts)
+        {
+            Silk.NET.WebGPU.PipelineLayoutDescriptor __descriptor = new()
+            {
+                Label = m.RentUtf8Ptr(label),
+                BindGroupLayoutCount = (nuint)bindGroupLayouts.Length,
+                BindGroupLayouts = (Silk.NET.WebGPU.BindGroupLayout**)bindGroupLayoutsPtr,
+            };
+
+            var result = WebGPU.DeviceCreatePipelineLayout(Handle, in __descriptor);
+            return new PipelineLayout(WebGPU, result);
+        }
+    }
+
+    public PipelineLayout CreatePipelineLayout(params ReadOnlySpan<BindGroupLayoutHandle> bindGroupLayouts)
+        => CreatePipelineLayout(null!, bindGroupLayouts);
+
     public Sampler CreateSampler(
-        FilterMode filter = FilterMode.Linear, 
-        MipmapFilterMode mipmapFilter = MipmapFilterMode.Linear, 
-        AddressMode addressMode = AddressMode.Repeat, 
+        FilterMode filter = FilterMode.Linear,
+        MipmapFilterMode mipmapFilter = MipmapFilterMode.Linear,
+        AddressMode addressMode = AddressMode.Repeat,
         ushort maxAnsiotropy = 16,
         string? label = null)
     {

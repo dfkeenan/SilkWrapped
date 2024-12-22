@@ -1,20 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public class Buffer<T> : Buffer
     where T : unmanaged
 {
     public Buffer(Buffer buffer)
         : this(buffer.WebGPU, buffer.Handle, buffer.GetSize())
     {
-        
+
     }
 
-    public Buffer(Silk.NET.WebGPU.WebGPU webGPU, BufferHandle handle, ulong size) 
+    public Buffer(Silk.NET.WebGPU.WebGPU webGPU, BufferHandle handle, ulong size)
         : base(webGPU, handle)
     {
         Size = size;

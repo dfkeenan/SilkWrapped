@@ -1,24 +1,30 @@
 ﻿using System.Numerics;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
 namespace SilkWrapped.WebGPU.Example;
+
+[VertexStruct]
+[StructLayout(LayoutKind.Sequential)]
+internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord);
+
+[BindGroup]
+internal partial class ProjectionMatrixBindGroup(Device device)
+{
+    [UniformBinding(ShaderStage.Vertex)]
+    public partial Matrix4x4 Projection { get; set; }
+}
+
+[BindGroup]
+internal partial class TextureBindGroup(
+     Device device,
+     [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,
+     [SamplerBinding(SamplerBindingType.Filtering, ShaderStage.Fragment)] Sampler sampler);
+
 internal class Demo : IDisposable
 {
-    public struct Vertex
-    {
-        public Vertex(Vector2 position, Vector2 texCoord)
-        {
-            Position = position;
-            TexCoord = texCoord;
-        }
-
-        public Vector2 Position;
-        public Vector2 TexCoord;
-    }
-
     private IWindow window = default!;
     private IInputContext? input;
     private IKeyboard? keyboard;
@@ -31,12 +37,8 @@ internal class Demo : IDisposable
     private TextureView? textureView;
     private Sampler? sampler;
 
-    private BindGroup? textureBindGroup;
-    private BindGroupLayout? textureSamplerBindGroupLayout;
-
-    private Buffer? projectionMatrixBuffer;
-    private BindGroupLayout? projectionMatrixBindGroupLayout;
-    private BindGroup? projectionMatrixBindGroup;
+    private TextureBindGroup? textureBindGroup;
+    private ProjectionMatrixBindGroup? projectionMatrixBindGroup;
 
     public GraphicsDeviceManager Graphics { get; set; }
 
@@ -50,7 +52,7 @@ internal class Demo : IDisposable
 
         window = Window.Create(options);
         Graphics = new GraphicsDeviceManager(window);
-        
+
         //Assign events.
         window.Load += OnLoad;
         window.Update += OnUpdate;
@@ -76,12 +78,9 @@ internal class Demo : IDisposable
         renderPipeline?.Dispose();
 
         projectionMatrixBindGroup?.Dispose();
-        projectionMatrixBindGroupLayout?.Dispose();
-        projectionMatrixBuffer?.Dispose();
 
         vertexBuffer?.Dispose();
         textureBindGroup?.Dispose();
-        textureSamplerBindGroupLayout?.Dispose();
         textureView?.Dispose();
         texture?.Dispose();
         sampler?.Dispose();
@@ -146,91 +145,9 @@ internal class Demo : IDisposable
 
         sampler = Graphics.Device.CreateSampler(FilterMode.Linear, MipmapFilterMode.Linear);
 
-        { //Create bind group for sampler and textureview
-            var layoutDescriptor = new BindGroupLayoutDescriptor
-            {
-                Entries =
-                [
-                    new BindGroupLayoutEntry
-                        {
-                            Binding = 0,
-                            Texture = new TextureBindingLayout
-                            {
-                                Multisampled = false,
-                                SampleType = TextureSampleType.Float,
-                                ViewDimension = TextureViewDimension.Dimension2D
-                            },
-                            Visibility = ShaderStage.Fragment
-                        },
-                        new BindGroupLayoutEntry
-                        {
-                            Binding = 1,
-                            Sampler = new SamplerBindingLayout
-                            {
-                                Type = SamplerBindingType.Filtering
-                            },
-                            Visibility = ShaderStage.Fragment
-                        }
-                ]
-            };
-
-            textureSamplerBindGroupLayout = Graphics.Device.CreateBindGroupLayout(in layoutDescriptor);
-
-            var descriptor = new BindGroupDescriptor
-            {
-                Entries = [new BindGroupEntry
-                                {
-                                    Binding = 0,
-                                    TextureView = textureView
-                                },
-                                new BindGroupEntry
-                                {
-                                    Binding = 1,
-                                    Sampler = sampler
-                                }],
-                Layout = textureSamplerBindGroupLayout
-            };
-
-            textureBindGroup = Graphics.Device.CreateBindGroup(in descriptor);
-
-        } //Create bind group for sampler and texture view
-
-        projectionMatrixBuffer = Graphics.Device.CreateBuffer<Matrix4x4>(BufferUsage.Uniform | BufferUsage.CopyDst);
+        textureBindGroup = new TextureBindGroup(Graphics.Device, textureView, sampler);
+        projectionMatrixBindGroup = new ProjectionMatrixBindGroup(Graphics.Device);
         UpdateProjectionMatrix();
-
-        { //Create bind group for projection matrix
-            var entry = new BindGroupLayoutEntry
-            {
-                Binding = 0,
-                Buffer = new BufferBindingLayout
-                {
-                    Type = BufferBindingType.Uniform,
-                    MinBindingSize = (ulong)Unsafe.SizeOf<Matrix4x4>()
-                },
-                Visibility = ShaderStage.Vertex,
-            };
-
-            var projectionMatrixLayoutDescriptor = new BindGroupLayoutDescriptor
-            {
-                Entries = [entry]
-            };
-
-            projectionMatrixBindGroupLayout = Graphics.Device.CreateBindGroupLayout(in projectionMatrixLayoutDescriptor);
-
-            var bindGroupEntry = new BindGroupEntry
-            {
-                Binding = 0,
-                Buffer = projectionMatrixBuffer,
-                Size = (ulong)Unsafe.SizeOf<Matrix4x4>()
-            };
-
-            BindGroupDescriptor projectionMatrixBindGroupDescriptor = new BindGroupDescriptor
-            {
-                Entries = [bindGroupEntry],
-                Layout = projectionMatrixBindGroupLayout
-            };
-            projectionMatrixBindGroup = Graphics.Device.CreateBindGroup(in projectionMatrixBindGroupDescriptor);
-        } //Create bind group for projection matrix 
 
         { //Create vertex buffer
 
@@ -265,59 +182,18 @@ internal class Demo : IDisposable
 
     private unsafe void CreateRenderPipeline()
     {
-        var vertexBufferLayout = new VertexBufferLayout
-        {
-            Attributes =
-            [
-                new VertexAttribute
-                {
-                    Format = VertexFormat.Float32x2,
-                    Offset = 0,
-                    ShaderLocation = 0
-                },
-                new VertexAttribute
-                {
-                    Format = VertexFormat.Float32x2,
-                    Offset = (ulong)Unsafe.SizeOf<Vector2>(),
-                    ShaderLocation = 1
-                }
-            ],
-            StepMode = VertexStepMode.Vertex,
-            ArrayStride = (ulong)Unsafe.SizeOf<Vertex>()
-        };
-
-        var colorTargetState = new ColorTargetState
-        {
-            Format = Graphics.DefaultSurfaceFormat,
-            Blend = BlendStates.NonPremultiplied,
-            WriteMask = ColorWriteMask.All
-        };
-
-        var fragmentState = new FragmentState
-        {
-            Module = shader,
-            Targets = [colorTargetState],
-            EntryPoint = "fs_main"
-        };
-
-        var pipelineLayoutDescriptor = new PipelineLayoutDescriptor
-        {
-            BindGroupLayouts =
-            [
-                textureSamplerBindGroupLayout,
-                projectionMatrixBindGroupLayout
-            ]
-        };
-
-        using var pipelineLayout = Graphics.Device!.CreatePipelineLayout(in pipelineLayoutDescriptor);
+        using var pipelineLayout = Graphics.Device!.CreatePipelineLayout(
+            textureBindGroup,
+            projectionMatrixBindGroup);
 
         var renderPipelineDescriptor = new RenderPipelineDescriptor
         {
+            Layout = pipelineLayout,
             Vertex = new VertexState
             {
                 Module = shader,
                 EntryPoint = "vs_main",
-                Buffers = [vertexBufferLayout],
+                Buffers = [Vertex.GetLayout()],
             },
             Primitive = new PrimitiveState
             {
@@ -332,9 +208,21 @@ internal class Demo : IDisposable
                 Mask = ~0u,
                 AlphaToCoverageEnabled = false
             },
-            Fragment = fragmentState,
+            Fragment = new FragmentState
+            {
+                Module = shader,
+                EntryPoint = "fs_main",
+                Targets =
+                [
+                    new ColorTargetState
+                    {
+                        Format = Graphics.DefaultSurfaceFormat,
+                        Blend = BlendStates.NonPremultiplied,
+                        WriteMask = ColorWriteMask.All
+                    }
+                ]
+            },
             DepthStencil = null,
-            Layout = pipelineLayout
         };
 
         renderPipeline = Graphics.Device.CreateRenderPipeline(in renderPipelineDescriptor);
@@ -342,11 +230,8 @@ internal class Demo : IDisposable
 
     private unsafe void UpdateProjectionMatrix()
     {
-        using var queue = Graphics.Device!.GetQueue();
-
-        var projectionMatrix = Matrix4x4.CreateOrthographicOffCenter(0, window!.Size.X, window.Size.Y, 0, 0, 1);
-
-        queue.WriteBuffer(projectionMatrixBuffer, projectionMatrix);
+        projectionMatrixBindGroup!.Projection
+            = Matrix4x4.CreateOrthographicOffCenter(0, window!.Size.X, window.Size.Y, 0, 0, 1);
     }
 
     private void OnUpdate(double obj)
@@ -382,8 +267,8 @@ internal class Demo : IDisposable
 
         using var renderPassEncoder = commandEncoder.BeginRenderPass(in renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
-        renderPassEncoder.SetBindGroup(0, textureBindGroup);
-        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup);
+        renderPassEncoder.SetBindGroup(0, textureBindGroup!);
+        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup!);
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.Size);
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();

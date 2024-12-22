@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SilkWrapped.WebGPU;
+﻿namespace SilkWrapped.WebGPU;
 public static class BlendStates
 {
     public static BlendState Default => new BlendState()
