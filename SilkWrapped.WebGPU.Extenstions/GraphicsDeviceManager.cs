@@ -25,33 +25,49 @@ public readonly record struct FramebufferSize(uint width, uint height)
     }
 }
 
-public unsafe class DeviceManager : IDisposable
+public unsafe class GraphicsDeviceManager : IDisposable
 {
     private readonly IView view;
+    private readonly DeviceManagerOptions options;
     private Instance instance;
     private Adapter adapter;
     private PfnDeviceLostCallback deviceLostCallback;
     private PfnErrorCallback errorCallback;
     private PresentMode presentMode;
 
-    public SurfaceCapabilities SurfaceCapabilities { get; }
-    public Queue Queue { get; }
-    public Device Device { get; }
-    public Surface Surface { get; }
-    public TextureFormat DefaultSurfaceFormat { get; }
+    public SurfaceCapabilities SurfaceCapabilities { get; private set; }
+    public Queue Queue { get; private set; }
+    public Device Device { get; private set; }
+    public Surface Surface { get; private set; }
+    public TextureFormat DefaultSurfaceFormat { get; private set; }
 
     public event Action<ErrorType, string?>? UncapturedError;
     public event Action<DeviceLostReason, string?>? DeviceLost;
 
-    public DeviceManager(IView view)
+    public GraphicsDeviceManager(IView view)
         : this(view, DeviceManagerOptions.Default)
     {
 
     }
 
-    public DeviceManager(IView view, DeviceManagerOptions options)
+    public GraphicsDeviceManager(IView view, DeviceManagerOptions options)
     {
         this.view = view ?? throw new ArgumentNullException(nameof(view));
+        this.options = options;
+        presentMode = options.PresentMode;
+        deviceLostCallback = PfnDeviceLostCallback.From(OnDeviceLost);
+        errorCallback = PfnErrorCallback.From(OnError);
+
+        if (!view.IsInitialized)
+        {
+            view.Load += Load;
+        }
+    }
+
+    public void Load()
+    {
+        view.Load -= Load;
+
         instance = new Instance();
         Surface = view!.CreateWebGPUSurface(instance);
 
@@ -63,8 +79,6 @@ public unsafe class DeviceManager : IDisposable
         };
 
         adapter = instance.RequestAdapter(Surface);
-
-        presentMode = options.PresentMode;
 
         SurfaceCapabilities surfaceCapabilities = default;
         Surface.GetCapabilities(adapter, ref surfaceCapabilities);
@@ -84,7 +98,6 @@ public unsafe class DeviceManager : IDisposable
             DefaultSurfaceFormat = SurfaceCapabilities.Formats![0];
         }
 
-        deviceLostCallback = PfnDeviceLostCallback.From(OnDeviceLost);
 
         DeviceDescriptor deviceDescriptor = new()
         {
@@ -93,11 +106,11 @@ public unsafe class DeviceManager : IDisposable
 
         Device = adapter.RequestDevice(in deviceDescriptor);
 
-        errorCallback = PfnErrorCallback.From(OnError);
-
         Device.SetUncapturedErrorCallback(errorCallback);
 
         Queue = Device.GetQueue();
+
+        CreateSwapChain();
     }
 
     private unsafe void OnDeviceLost(DeviceLostReason reason, string? message, void* userdata)
