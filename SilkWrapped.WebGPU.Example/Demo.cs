@@ -25,8 +25,7 @@ internal class Demo : IDisposable
     private ShaderModule? shader;
     private RenderPipeline? renderPipeline;
 
-    private Buffer? vertexBuffer;
-    private ulong vertexBufferSize;
+    private Buffer<Vertex>? vertexBuffer;
 
     private Texture? texture;
     private TextureView? textureView;
@@ -96,7 +95,7 @@ internal class Demo : IDisposable
 
     private void FramebufferResize(Vector2D<int> size)
     {
-        Graphics.CreateSwapChain();
+        Graphics.ResizeSwapChain();
         UpdateProjectionMatrix();
     }
 
@@ -236,7 +235,6 @@ internal class Demo : IDisposable
         { //Create vertex buffer
 
             vertexBuffer = Graphics.Device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, 6);
-            vertexBufferSize = vertexBuffer.GetSize();
 
             //Get a queue
             using var queue = Graphics.Device.GetQueue();
@@ -386,7 +384,7 @@ internal class Demo : IDisposable
         renderPassEncoder.SetPipeline(renderPipeline);
         renderPassEncoder.SetBindGroup(0, textureBindGroup);
         renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup);
-        renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBufferSize);
+        renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.Size);
         renderPassEncoder.Draw(6, 1, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();

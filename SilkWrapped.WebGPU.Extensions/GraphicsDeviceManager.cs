@@ -1,4 +1,5 @@
-﻿using Silk.NET.Windowing;
+﻿using System.Runtime.CompilerServices;
+using Silk.NET.Windowing;
 
 namespace SilkWrapped.WebGPU;
 
@@ -122,6 +123,10 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
     {
         UncapturedError?.Invoke(reason, message);
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ResizeSwapChain()
+        => CreateSwapChain();
 
     public void CreateSwapChain()
     {
