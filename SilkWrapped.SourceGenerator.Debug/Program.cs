@@ -1,41 +1,39 @@
 ﻿using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SilkWrapped.SourceGenerator.Common;
 
 var source =
 """
-using Silk.NET.WebGPU.Extensions.Dawn;
-using SilkWrapped.SourceGenerator;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Silk.NET.Input;
+using Silk.NET.Maths;
+using Silk.NET.Windowing;
 
-namespace SilkWrapped.WebGPU;
+namespace SilkWrapped.WebGPU.Example;
 
-[ApiContainer(typeof(Silk.NET.WebGPU.Instance), HandleTypeNameExclusionPattern = "(Pfn).*|.*Descriptor|InstanceFeatures|Future", DisposalMethodNamePattern = ".*(Release).*")]
-public unsafe partial class ApiContainer
-{
-    public ApiContainer()
-    {
-        Core = Silk.NET.WebGPU.WebGPU.GetApi();
-        //if(Core.TryGetDeviceExtension(null, out Dawn dawn))
-        //{
-        //    Dawn = dawn;
-        //}
-    }
+[VertexStruct]
+[StructLayout(LayoutKind.Sequential)]
+internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord);
 
-    public Silk.NET.WebGPU.WebGPU Core { get; }
-    //public Dawn? Dawn { get; set; }
-}
 """;
+
+var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest));
 
 var types = new[]
 {
     typeof(Silk.NET.WebGPU.WebGPU).GetTypeInfo(),
     typeof(Silk.NET.WebGPU.Extensions.Dawn.Dawn).GetTypeInfo(),
+    typeof(SilkWrapped.WebGPU.Device).GetTypeInfo(),
+    typeof(SilkWrapped.WebGPU.GraphicsDeviceManager).GetTypeInfo(),
 };
 
 var metadataReferences = AppDomain.CurrentDomain.GetAssemblies().Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
 
 var compilation = CSharpCompilation.Create("compilation",
-                [CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest))],
+                [syntaxTree],
                 metadataReferences,
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
@@ -43,8 +41,6 @@ foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == Diagn
 {
     Console.WriteLine(item.GetMessage());
 }
-
-
 
 
 //GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);

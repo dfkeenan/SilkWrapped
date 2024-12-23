@@ -256,6 +256,13 @@ public class IndentedStringBuilder
         return this;
     }
 
+    public virtual IndentedStringBuilder AppendIndent()
+    {
+        _stringBuilder.Append(' ', IndentSize);
+        return this;
+    }
+
+
     /// <summary>
     /// Insert text at character
     /// </summary>
