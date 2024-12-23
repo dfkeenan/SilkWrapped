@@ -12,10 +12,11 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
     private readonly Dictionary<string, string> argumentReplacements = [];
     private readonly Dictionary<string, IMethodSymbol> methodSymbols = [];
 
-    [return: NotNullIfNotNull("node")]
+    [return: NotNullIfNotNull(nameof(node))]
     public override SyntaxNode? Visit(SyntaxNode? node, GeneratorTransformContext context)
     {
-        if (context.Compilation!.GetSemanticModel(node.SyntaxTree) is SemanticModel semanticModel)
+        if (node is not null &&
+            context.Compilation!.GetSemanticModel(node.SyntaxTree) is SemanticModel semanticModel)
         {
             methodSymbols.Clear();
             var methods = node.DescendantNodes().OfType<BaseMethodDeclarationSyntax>();
@@ -47,12 +48,12 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
 
         foreach (var countField in fields.Keys.Where(k => k.EndsWith("Count")))
         {
-            var pointerName = countField.Substring(0, countField.Length - "Count".Length).Pluralize();
+            var pointerName = countField[..^"Count".Length].Pluralize();
 
             if (!fields.TryGetValue(pointerName, out var pointerField)) continue;
             if (pointerField.Declaration.Type is not PointerTypeSyntax pointerType) continue;
 
-            var newType = ParseTypeName($"ReadOnlySpan<{pointerType.ElementType.ToString()}> ");
+            var newType = ParseTypeName($"ReadOnlySpan<{pointerType.ElementType}> ");
 
 
             fieldUpdates[countField] = null;
@@ -117,7 +118,7 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
 
         foreach (var parameter in parameters.Keys.Where(k => k.EndsWith("Count")))
         {
-            var pointerName = parameter.Substring(0, parameter.Length - "Count".Length).Pluralize();
+            var pointerName = parameter[..^"Count".Length].Pluralize();
 
             if (!parameters.TryGetValue(pointerName, out var pointerParameter)) continue;
 
@@ -131,7 +132,7 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
 
             if (pointerParameter.Type is not PointerTypeSyntax pointerType) continue;
 
-            var newType = ParseTypeName($"ReadOnlySpan<{pointerType.ElementType.ToString()}> ");
+            var newType = ParseTypeName($"ReadOnlySpan<{pointerType.ElementType}> ");
 
             var newParam = pointerParameter.WithType(newType);
             if (pointerParameter == lastParameter)
@@ -155,7 +156,7 @@ internal class PointerToSpan : ContextAwareCSharpSyntaxRewriter
 
             conditionReplacements.Add(pointerName);
             conditionRemovals.Add(parameter);
-            argumentReplacements[parameter] = $"({countParameterNode.Type!.ToString()}){pointerName}.Length";
+            argumentReplacements[parameter] = $"({countParameterNode.Type}){pointerName}.Length";
 
             var paramterType = (IPointerTypeSymbol)pointerParameterSymbol.Type;
             if (paramterType.PointedAtType is INamedTypeSymbol namedType)

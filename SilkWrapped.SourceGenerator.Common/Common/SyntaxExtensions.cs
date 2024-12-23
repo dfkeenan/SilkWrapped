@@ -2,7 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace SilkWrapped.SourceGenerator;
+namespace SilkWrapped.SourceGenerator.Common;
 public static class SyntaxExtensions
 {
     public static bool IsPartial(this TypeDeclarationSyntax typeDeclaration)

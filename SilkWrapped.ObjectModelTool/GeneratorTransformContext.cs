@@ -1,6 +1,6 @@
 ﻿using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using SilkWrapped.SourceGenerator;
+using SilkWrapped.SourceGenerator.Common;
 
 namespace SilkWrapped.ObjectModelTool;
 internal class GeneratorTransformContext
@@ -185,7 +185,7 @@ internal class GeneratorTransformContext
     {
         if (handleTypes.ContainsKey(namedTypeSymbol.Name))
         {
-            var apiTypeName = namedTypeSymbol.Name.Substring(0, namedTypeSymbol.Name.Length - "Handle".Length);
+            var apiTypeName = namedTypeSymbol.Name[..^"Handle".Length];
             if (TryGetApiTypeSymbol(apiTypeName, out apiTypeSymbol)) return true;
         }
         apiTypeSymbol = null;

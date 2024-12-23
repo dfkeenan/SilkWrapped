@@ -15,12 +15,12 @@ internal class PointerToArray : CSharpSyntaxRewriter
 
         foreach (var countField in fields.Keys.Where(k => k.EndsWith("Count")))
         {
-            var pointerName = countField.Substring(0, countField.Length - "Count".Length).Pluralize();
+            var pointerName = countField[..^"Count".Length].Pluralize();
 
             if (!fields.TryGetValue(pointerName, out var pointerField)) continue;
             if (pointerField.Declaration.Type is not PointerTypeSyntax pointerType) continue;
 
-            var newType = ParseTypeName($"{pointerType.ElementType.ToString()}[]? ");
+            var newType = ParseTypeName($"{pointerType.ElementType}[]? ");
 
 
             fieldUpdates[countField] = null;
@@ -62,7 +62,7 @@ internal class PointerToArray : CSharpSyntaxRewriter
 
         foreach (var parameter in parameters.Keys.Where(k => k.EndsWith("Count")))
         {
-            var pointerName = parameter.Substring(0, parameter.Length - "Count".Length).Pluralize();
+            var pointerName = parameter[..^"Count".Length].Pluralize();
 
             if (!parameters.TryGetValue(pointerName, out var pointerParameter)) continue;
 
@@ -74,7 +74,7 @@ internal class PointerToArray : CSharpSyntaxRewriter
 
             if (pointerParameter.Type is not PointerTypeSyntax pointerType) continue;
 
-            var newType = ParseTypeName($"{pointerType.ElementType.ToString()}[]? ");
+            var newType = ParseTypeName($"{pointerType.ElementType}[]? ");
 
             var newParam = pointerParameter.WithType(newType);
 
@@ -89,7 +89,7 @@ internal class PointerToArray : CSharpSyntaxRewriter
             node = node!.RemoveNode(countParameterNode, SyntaxRemoveOptions.KeepLeadingTrivia)!;
 
             conditionRemovals.Add(parameter);
-            argumentReplacements[parameter] = $"({countParameterNode.Type!.ToString()}){pointerName}.Length";
+            argumentReplacements[parameter] = $"({countParameterNode.Type}){pointerName}.Length";
         }
         return node;
     }

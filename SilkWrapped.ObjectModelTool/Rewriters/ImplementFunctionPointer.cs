@@ -1,4 +1,6 @@
-﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿using SilkWrapped.SourceGenerator.Common;
+
+namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class ImplementFunctionPointer : ContextAwareCSharpSyntaxRewriter
 {
     public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)

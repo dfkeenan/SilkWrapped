@@ -136,6 +136,18 @@ internal partial class ProjectionMatrixBindGroup : IBindGroup<ProjectionMatrixBi
         return group.Equals(other.group);
     }
 
+    public override bool Equals(object obj)
+    {
+        if (obj is not ProjectionMatrixBindGroup other) return false;
+        return Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        CreateBindGroup();
+        return group.GetHashCode();
+    }
+
     public static implicit operator BindGroupLayoutHandle(ProjectionMatrixBindGroup obj)
         => obj.Layout;
 
@@ -245,6 +257,18 @@ internal partial class TextureBindGroup : IBindGroup<TextureBindGroup>
         other.CreateBindGroup();
 
         return group.Equals(other.group);
+    }
+
+    public override bool Equals(object obj)
+    {
+        if (obj is not TextureBindGroup other) return false;
+        return Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        CreateBindGroup();
+        return group.GetHashCode();
     }
 
     public static implicit operator BindGroupLayoutHandle(TextureBindGroup obj)

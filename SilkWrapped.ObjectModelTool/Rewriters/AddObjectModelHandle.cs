@@ -1,4 +1,6 @@
-﻿namespace SilkWrapped.ObjectModelTool.Rewriters;
+﻿using SilkWrapped.SourceGenerator.Common;
+
+namespace SilkWrapped.ObjectModelTool.Rewriters;
 internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
 {
     private MemberDeclarationSyntax? handleDeclaratation;
@@ -36,7 +38,7 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
             return base.VisitClassDeclaration(node);
         }
 
-        var apiHandleType = ParseTypeName($"{Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{firstParameter.Type!.ToString()}");
+        var apiHandleType = ParseTypeName($"{Context.ApiTypeSymbol.ContainingNamespace.ToDisplayString()}.{firstParameter.Type}");
 
         var handleType = MakeHandleStruct(apiHandleType);
 
@@ -46,7 +48,7 @@ internal class AddObjectModelHandle : ContextAwareCSharpSyntaxRewriter
 
         var members = node.Members.Insert(0, handleProperty);
 
-        var castOperator = ParseMemberDeclaration($"public static implicit operator {handleType.ToString()}({node.Identifier.Text} obj) => obj.Handle;")!;
+        var castOperator = ParseMemberDeclaration($"public static implicit operator {handleType}({node.Identifier.Text} obj) => obj.Handle;")!;
         members = members.Add(castOperator);
 
         node = node.WithMembers(members);

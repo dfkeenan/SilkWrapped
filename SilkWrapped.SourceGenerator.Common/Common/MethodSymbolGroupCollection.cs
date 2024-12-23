@@ -1,6 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
-namespace SilkWrapped.SourceGenerator;
+namespace SilkWrapped.SourceGenerator.Common;
 public class MethodSymbolGroupCollection
 {
     private Dictionary<ITypeSymbol, List<IMethodSymbol>> members = new(SymbolEqualityComparer.Default);

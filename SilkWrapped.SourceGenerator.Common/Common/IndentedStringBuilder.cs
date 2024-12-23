@@ -3,9 +3,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Runtime.InteropServices;
 using System.Text;
 
-namespace SilkWrapped.ObjectModelTool;
+namespace SilkWrapped.SourceGenerator.Common;
 
 /// <summary>
 ///     <para>
@@ -22,6 +23,20 @@ namespace SilkWrapped.ObjectModelTool;
 /// </remarks>
 public class IndentedStringBuilder
 {
+    static IndentedStringBuilder()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            NewLine = "\r\n";
+        }
+        else
+        {
+            NewLine = "\n";
+        }
+    }
+
+    private static readonly string NewLine;
+
     private const byte IndentSize = 4;
     private int _indent;
     private bool _indentPending = true;
@@ -256,7 +271,7 @@ public class IndentedStringBuilder
     public virtual IndentedStringBuilder InsertLine(int index, string value)
     {
         _stringBuilder.Insert(index, value);
-        _stringBuilder.Insert(index + value.Length, Environment.NewLine);
+        _stringBuilder.Insert(index + value.Length, NewLine);
 
         return this;
     }

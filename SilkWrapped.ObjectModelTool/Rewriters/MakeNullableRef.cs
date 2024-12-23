@@ -16,7 +16,7 @@ internal class MakeNullableRef : CSharpSyntaxRewriter
         if (node.Span.IntersectsWith(location.SourceSpan) &&
             node.Type is NullableTypeSyntax nts)
         {
-            node = node.WithType(ParseTypeName($"NullableRef<{nts.ElementType.ToString()}>"));
+            node = node.WithType(ParseTypeName($"NullableRef<{nts.ElementType}>"));
         }
 
         return base.VisitParameter(node);
@@ -27,7 +27,7 @@ internal class MakeNullableRef : CSharpSyntaxRewriter
         if (node.Span.IntersectsWith(location.SourceSpan) &&
             node.Type is NullableTypeSyntax nts)
         {
-            node = node.WithType(ParseTypeName($"NullableRef<{nts.ElementType.ToString()}>"));
+            node = node.WithType(ParseTypeName($"NullableRef<{nts.ElementType}>"));
         }
 
 

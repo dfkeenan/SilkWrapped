@@ -14,8 +14,5 @@
       <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.22.0" />
       <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" PrivateAssets="all" />
     </ItemGroup>
-    <ItemGroup>
-      <ProjectReference Include="..\SilkWrapped.SourceGenerator\SilkWrapped.SourceGenerator.csproj" />
-    </ItemGroup>
 
 </Project>

@@ -3,7 +3,7 @@ global using Microsoft.CodeAnalysis.CSharp;
 global using Microsoft.CodeAnalysis.CSharp.Syntax;
 global using Microsoft.CodeAnalysis.MSBuild;
 global using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-global using static SilkWrapped.SourceGenerator.CustomSyntaxFactory;
+global using static SilkWrapped.SourceGenerator.Common.CustomSyntaxFactory;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -139,7 +139,7 @@ internal class Program
 
             foreach (var transformer in generator.TransformGenerators)
             {
-                Console.WriteLine($"Executing '{transformer.ToString()}'");
+                Console.WriteLine($"Executing '{transformer}'");
                 await transformer!.TransformAsync(generatorContext, token);
             }
 

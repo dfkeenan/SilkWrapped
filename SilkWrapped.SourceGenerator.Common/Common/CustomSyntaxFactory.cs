@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace SilkWrapped.SourceGenerator;
+namespace SilkWrapped.SourceGenerator.Common;
 public static class CustomSyntaxFactory
 {
     public static ClassDeclarationSyntax ClassDeclaration(string identifier, params SyntaxKind[] modifiers)
@@ -129,7 +129,7 @@ public static class CustomSyntaxFactory
             var index = typeText.LastIndexOf('.');
             if (index >= 0)
             {
-                typeText = typeText.Substring(index + 1);
+                typeText = typeText[(index + 1)..];
             }
         }
 
@@ -268,7 +268,7 @@ public static class CustomSyntaxFactory
     }
 
     public static string CamelCase(string value)
-        => char.ToLower(value[0]) + value.Substring(1);
+        => char.ToLower(value[0]) + value[1..];
 
     public static SyntaxToken CamelCase(SyntaxToken value)
         => Identifier(CamelCase(value.Text));

@@ -35,7 +35,7 @@ var types = new[]
 var metadataReferences = AppDomain.CurrentDomain.GetAssemblies().Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
 
 var compilation = CSharpCompilation.Create("compilation",
-                new[] { CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest)) },
+                [CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest))],
                 metadataReferences,
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 

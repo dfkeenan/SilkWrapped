@@ -10,14 +10,14 @@ public struct DeviceManagerOptions
     public PresentMode PresentMode = PresentMode.Fifo;
     public TextureFormat? SurfaceFormat = null;
 
-    public static DeviceManagerOptions Default => new DeviceManagerOptions();
+    public static DeviceManagerOptions Default => new();
 
     public DeviceManagerOptions()
     {
     }
 }
 
-public readonly record struct FramebufferSize(uint width, uint height)
+public readonly record struct FramebufferSize(uint Width, uint Height)
 {
     public FramebufferSize(int width, int height)
         : this((uint)width, (uint)height)
@@ -30,16 +30,32 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
 {
     private readonly IView view;
     private readonly DeviceManagerOptions options;
-    private Instance instance;
+    private readonly Instance instance;
     private Adapter adapter;
     private PfnDeviceLostCallback deviceLostCallback;
     private PfnErrorCallback errorCallback;
     private PresentMode presentMode;
+    private bool isDisposed;
 
     public SurfaceCapabilities SurfaceCapabilities { get; private set; }
-    public Queue Queue { get; private set; }
-    public Device Device { get; private set; }
-    public Surface Surface { get; private set; }
+    public Queue Queue
+    {
+        get => field ?? throw new InvalidOperationException($"{nameof(GraphicsDeviceManager)} has not been loaded.");
+        private set;
+    }
+
+    public Device Device
+    {
+        get => field ?? throw new InvalidOperationException($"{nameof(GraphicsDeviceManager)} has not been loaded.");
+        private set;
+    }
+
+    public Surface Surface
+    {
+        get => field ?? throw new InvalidOperationException($"{nameof(GraphicsDeviceManager)} has not been loaded.");
+        private set;
+    }
+
     public TextureFormat DefaultSurfaceFormat { get; private set; }
 
     public event Action<ErrorType, string?>? UncapturedError;
@@ -59,6 +75,8 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         deviceLostCallback = PfnDeviceLostCallback.From(OnDeviceLost);
         errorCallback = PfnErrorCallback.From(OnError);
 
+        instance = new Instance();
+
         if (!view.IsInitialized)
         {
             view.Load += Load;
@@ -68,8 +86,6 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
     public void Load()
     {
         view.Load -= Load;
-
-        instance = new Instance();
         Surface = view!.CreateWebGPUSurface(instance);
 
         RequestAdapterOptions adapterOptions = new()
@@ -167,15 +183,37 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         return surfaceTexture.CreateView();
     }
 
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!isDisposed)
+        {
+            if (disposing)
+            {
+                // TODO: dispose managed state (managed objects)
+            }
+
+            Queue?.Dispose();
+            Device?.Dispose();
+            deviceLostCallback.Dispose();
+            errorCallback.Dispose();
+            adapter?.Dispose();
+            Surface?.Dispose();
+            instance?.Dispose();
+
+            isDisposed = true;
+        }
+    }
+
+    // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+    // ~GraphicsDeviceManager()
+    // {
+    //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+    //     Dispose(disposing: false);
+    // }
 
     public void Dispose()
     {
-        Queue?.Dispose();
-        Device?.Dispose();
-        deviceLostCallback.Dispose();
-        errorCallback.Dispose();
-        adapter?.Dispose();
-        Surface?.Dispose();
-        instance?.Dispose();
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 }

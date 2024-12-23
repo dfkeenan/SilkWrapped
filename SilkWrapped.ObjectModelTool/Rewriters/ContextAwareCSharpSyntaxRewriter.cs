@@ -7,7 +7,7 @@ internal class ContextAwareCSharpSyntaxRewriter : CSharpSyntaxRewriter
 
     public static string ToPascalCase(string s)
     {
-        return Char.ToLowerInvariant(s[0]) + s.Substring(1);
+        return Char.ToLowerInvariant(s[0]) + s[1..];
     }
 
     [return: NotNullIfNotNull(nameof(node))]

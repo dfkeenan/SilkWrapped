@@ -1,5 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 using SilkWrapped.ObjectModelTool.Rewriters;
+using SilkWrapped.SourceGenerator.Common;
 
 namespace SilkWrapped.ObjectModelTool.GeneratorTransforms;
 internal class ExtractObjectModelTypes : GeneratorTransformBase

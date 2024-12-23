@@ -1,7 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace SilkWrapped.SourceGenerator;
+namespace SilkWrapped.SourceGenerator.Common;
 public static class SourceGeneratorExtensions
 {
 

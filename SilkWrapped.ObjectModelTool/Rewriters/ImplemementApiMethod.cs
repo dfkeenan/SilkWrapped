@@ -1,4 +1,4 @@
-﻿using SilkWrapped.SourceGenerator;
+﻿using SilkWrapped.SourceGenerator.Common;
 
 namespace SilkWrapped.ObjectModelTool.Rewriters;
 

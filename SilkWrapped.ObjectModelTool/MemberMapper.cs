@@ -1,4 +1,5 @@
 ﻿using Humanizer;
+using SilkWrapped.SourceGenerator.Common;
 
 namespace SilkWrapped.ObjectModelTool;
 
@@ -90,7 +91,7 @@ internal static class MemberMapper
 
             if (parameter.Modifiers is { Count: > 0 })
             {
-                argument = $"{parameter.Modifiers.ToString()} {argument}";
+                argument = $"{parameter.Modifiers} {argument}";
             }
 
             arguments.Add(argument);
@@ -202,7 +203,7 @@ internal static class MemberMapper
 
             if (parameter.Modifiers is { Count: > 0 })
             {
-                argument = $"{parameter.Modifiers.ToString()} {argument}";
+                argument = $"{parameter.Modifiers} {argument}";
             }
 
             arguments.Add(argument);

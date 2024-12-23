@@ -165,12 +165,12 @@ internal class Demo : IDisposable
             ReadOnlySpan<Vertex> data =
             [
                 new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
-                    new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0)),  //Top right
-                    new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
-                    new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
-                    new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
-                    new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1)),  //Bottom left
-                ];
+                new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0)),  //Top right
+                new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
+                new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
+                new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
+                new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1)),  //Bottom left
+            ];
 
             //Write the data to the buffer
             queue.WriteBuffer(vertexBuffer, data);
@@ -191,7 +191,7 @@ internal class Demo : IDisposable
             Layout = pipelineLayout,
             Vertex = new VertexState
             {
-                Module = shader,
+                Module = shader!,
                 EntryPoint = "vs_main",
                 Buffers = [Vertex.GetLayout()],
             },
@@ -210,7 +210,7 @@ internal class Demo : IDisposable
             },
             Fragment = new FragmentState
             {
-                Module = shader,
+                Module = shader!,
                 EntryPoint = "fs_main",
                 Targets =
                 [
@@ -244,6 +244,8 @@ internal class Demo : IDisposable
 
     private unsafe void OnRender(double obj)
     {
+        if (renderPipeline is null || vertexBuffer is null) return;
+
         using var surfaceTextureView = Graphics.GetCurrentSurfaceTextureView();
         if (surfaceTextureView is null) return;
 
