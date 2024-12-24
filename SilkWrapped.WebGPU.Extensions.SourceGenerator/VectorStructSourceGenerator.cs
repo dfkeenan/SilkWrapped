@@ -1,9 +1,7 @@
 ﻿using System.Collections.Immutable;
-using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
 using SilkWrapped.SourceGenerator.Common;
 
 namespace SilkWrapped.WebGPU.Extensions.SourceGenerator;
@@ -14,9 +12,9 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var declarations = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "SilkWrapped.WebGPU.Extensions.VertexStructAttribute",
+            "SilkWrapped.WebGPU.VertexStructAttribute",
             predicate: IsCandidate,
-            transform: static (ctx, ct) 
+            transform: static (ctx, ct)
                 => GetDeclartionInfo(ctx.SemanticModel, ctx.TargetSymbol, ctx.TargetNode, ctx.Attributes))
             .Where(i => i is not null);
 
@@ -43,18 +41,20 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
     }
 
     private static DeclartionInfo? GetDeclartionInfo(
-        SemanticModel semanticModel, 
-        ISymbol targetSymbol, 
-        SyntaxNode targetNode, 
+        SemanticModel semanticModel,
+        ISymbol targetSymbol,
+        SyntaxNode targetNode,
         ImmutableArray<AttributeData> attributes)
     {
         if (targetNode is not TypeDeclarationSyntax decl) return null;
         if (targetSymbol is not INamedTypeSymbol namedType) return null;
+        if (attributes is not [AttributeData attribute]) return null;
 
         return new DeclartionInfo(
             namedType.Name,
             namedType.ContainingNamespace.ToDisplayString(),
             decl.GetDeclaration(),
+            attribute,
             []);
     }
 
@@ -63,6 +63,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         string Name,
         string Namespace,
         string Declaration,
+        AttributeData Attribute,
         ImmutableArray<INamedTypeSymbol> FieldTypes)
     {
         public string HintName => $"{Namespace}.{Name}.g.s";
@@ -71,15 +72,37 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         {
             var sb = new IndentedStringBuilder();
 
-            sb.AppendLine($"namespace {Namespace}").BlockStart();
-            sb.AppendLine(Declaration)
-              .AppendIndent().AppendLine($": global::SilkWrapped.WebGPU.Extensions.IVertexStruct")
-              .BlockStart();
+            sb.AppendLine($"namespace {Namespace}");
+            using (sb.BeginBlock())
+            {
+                sb.AppendLine(Declaration)
+                    .AppendIndent().AppendLine($": {SGNamespaces.SWWebGPU["IVertexStruct"]}");
 
+                using (sb.BeginBlock())
+                {
+                    //sb.AppendCompilerGenerated().AppendNeverEditorBrowsable();
+                    sb.AppendCompilerGenerated();
+                    sb.AppendLine($"public static {SGNamespaces.SWWebGPU["VertexBufferLayout"]} GetLayout()");
+                    using (sb.BeginBlock())
+                    {
+                        sb.AppendLine($"var vertexBufferLayout = new {SGNamespaces.SWWebGPU["VertexBufferLayout"]}");
+                        using (sb.BeginBlock(closeNewLine: false))
+                        {
+                            sb.AppendLine("Attributes =");
+                            using (sb.BeginBlock('[', false))
+                            {
 
+                            }
+                            sb.AppendLine(",");
+                            sb.AppendLine($"StepMode = {SGNamespaces.SWWebGPU["VertexStepMode"]}.GetMeFromAttribute,");
+                            sb.AppendLine($"ArrayStride = (ulong){CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{Name}>()");
+                        }
+                        sb.AppendLine(";");
+                    }
 
-            sb.BlockEnd();
-            sb.BlockEnd();
+                    sb.AppendLine("return vertexBufferLayout;");
+                }
+            }
             return sb.ToString();
         }
     }

@@ -1,20 +1,18 @@
 ﻿using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using SilkWrapped.SourceGenerator.Common;
+using SilkWrapped.SourceGenerator.Debug;
+using SilkWrapped.WebGPU.Extensions.SourceGenerator;
 
 var source =
 """
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Silk.NET.Input;
-using Silk.NET.Maths;
-using Silk.NET.Windowing;
+//using Silk.NET.Maths;
 
 namespace SilkWrapped.WebGPU.Example;
 
-[VertexStruct]
+[VertexStruct(VertexStepMode.Instance)]
 [StructLayout(LayoutKind.Sequential)]
 internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord);
 
@@ -42,11 +40,12 @@ foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == Diagn
     Console.WriteLine(item.GetMessage());
 }
 
+var generator = new VectorStructSourceGenerator();
 
-//GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
 
-////driver = driver.RunGenerators(compilation!);
-//driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);
+driver = driver.RunGenerators(compilation!);
+driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);
 
 //if (Directory.Exists("sourceout"))
 //{
@@ -57,10 +56,11 @@ foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == Diagn
 //    Directory.CreateDirectory("sourceout");
 //}
 
-//foreach (var item in outputCompilation.SyntaxTrees.Where( t => !string.IsNullOrEmpty(t.FilePath)))
-//{
-//    File.WriteAllText($@"sourceout\{Path.GetFileName(item.FilePath)}", item.GetText().ToString());
-//}
+foreach (var item in outputCompilation.SyntaxTrees.Where(t => !string.IsNullOrEmpty(t.FilePath)))
+{
+    //File.WriteAllText($@"sourceout\{Path.GetFileName(item.FilePath)}", item.GetText().ToString());
+    await CodeConsole.Write(item.GetText().ToString());
+}
 
 
 Console.WriteLine();
