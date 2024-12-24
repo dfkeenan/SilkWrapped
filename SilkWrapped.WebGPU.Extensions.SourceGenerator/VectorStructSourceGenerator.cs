@@ -50,12 +50,24 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         if (targetSymbol is not INamedTypeSymbol namedType) return null;
         if (attributes is not [AttributeData attribute]) return null;
 
+        var fieldTypes = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+
+        foreach (var member in namedType.GetMembers())
+        {
+            if (member is IFieldSymbol {Type: INamedTypeSymbol fieldType })
+            {
+                fieldTypes.Add(fieldType);
+            }
+            
+        }
+        
+
         return new DeclartionInfo(
             namedType.Name,
             namedType.ContainingNamespace.ToDisplayString(),
             decl.GetDeclaration(),
             attribute,
-            []);
+            fieldTypes.ToImmutable());
     }
 
 
@@ -85,15 +97,34 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                     sb.AppendLine($"public static {SGNamespaces.SWWebGPU["VertexBufferLayout"]} GetLayout()");
                     using (sb.BeginBlock())
                     {
+                        sb.AppendLine("int offset = 0;");
+                        sb.AppendLine($"var attributes = new {SGNamespaces.SWWebGPU["VertexAttribute"]}[{FieldTypes.Length}];");
+                        sb.AppendLine();
+
+                        for (int i = 0; i < FieldTypes.Length; i++)
+                        {
+                            sb.AppendLine($"attributes[{i}] = new ()");
+                            using (sb.BeginBlock(closeNewLine: false))
+                            {
+                                sb.AppendLine($"//Format = I don't Know,");
+                                sb.AppendLine($"Offset = (ulong)offset,");
+                                sb.AppendLine($"ShaderLocation = {i}");
+                            }
+                            sb.AppendLine(";");
+
+                            if(i < FieldTypes.Length - 1)
+                            {
+                                var typeName = FieldTypes[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                                sb.AppendLine($"offset += {CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{typeName}>();");
+                            }
+                            
+                            sb.AppendLine();
+                        }
+
                         sb.AppendLine($"var vertexBufferLayout = new {SGNamespaces.SWWebGPU["VertexBufferLayout"]}");
                         using (sb.BeginBlock(closeNewLine: false))
                         {
-                            sb.AppendLine("Attributes =");
-                            using (sb.BeginBlock('[', false))
-                            {
-
-                            }
-                            sb.AppendLine(",");
+                            sb.AppendLine("Attributes = attributes,");
                             sb.AppendLine($"StepMode = {SGNamespaces.SWWebGPU["VertexStepMode"]}.GetMeFromAttribute,");
                             sb.AppendLine($"ArrayStride = (ulong){CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{Name}>()");
                         }

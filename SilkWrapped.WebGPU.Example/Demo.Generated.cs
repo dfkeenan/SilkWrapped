@@ -7,23 +7,28 @@ internal readonly partial record struct Vertex : IVertexStruct
 {
     public static VertexBufferLayout GetLayout()
     {
+        int offset = 0;
+        var attributes = new VertexAttribute[2];
+
+        attributes[0] = new ()
+        {
+            Format = VertexFormat.Float32x2,
+            Offset = (ulong)offset,
+            ShaderLocation = 0
+        };
+        offset += Unsafe.SizeOf<Vector2>();
+
+        attributes[1] = new VertexAttribute
+        {
+            Format = VertexFormat.Float32x2,
+            Offset = (ulong)offset,
+            ShaderLocation = 1
+        };
+        offset += Unsafe.SizeOf<Vector2>();
+
         var vertexBufferLayout = new VertexBufferLayout
         {
-            Attributes =
-            [
-                new VertexAttribute
-                {
-                    Format = VertexFormat.Float32x2,
-                    Offset = 0,
-                    ShaderLocation = 0
-                },
-                new VertexAttribute
-                {
-                    Format = VertexFormat.Float32x2,
-                    Offset = (ulong)Unsafe.SizeOf<Vector2>(),
-                    ShaderLocation = 1
-                }
-            ],
+            Attributes = attributes,
             StepMode = VertexStepMode.Vertex,
             ArrayStride = (ulong)Unsafe.SizeOf<Vertex>()
         };
