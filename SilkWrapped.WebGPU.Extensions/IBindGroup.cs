@@ -6,6 +6,8 @@ public interface IBindGroup<TBindGroup> : IEquatable<TBindGroup>, IDisposable
     BindGroupLayout Layout { get; }
     void ApplyChanges();
 
+    static abstract BindGroupLayout CreateLayout(Device device);
+
     static abstract implicit operator BindGroupLayoutHandle(TBindGroup obj);
     static abstract explicit operator BindGroupHandle(TBindGroup obj);
 }

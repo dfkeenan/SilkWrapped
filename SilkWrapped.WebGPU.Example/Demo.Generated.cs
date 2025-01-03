@@ -63,9 +63,17 @@ internal partial class ProjectionMatrixBindGroup : IBindGroup<ProjectionMatrixBi
         {
             //TODO - How to share layout between instances
             if (layout is not null) return layout;
-            var layoutDescriptor = new BindGroupLayoutDescriptor
-            {
-                Entries = 
+            
+            layout = CreateLayout(device);
+            return layout;
+        }
+    }
+
+    public static BindGroupLayout CreateLayout(Device device)
+    {
+        var layoutDescriptor = new BindGroupLayoutDescriptor
+        {
+            Entries =
                 [
                     new BindGroupLayoutEntry
                     {
@@ -78,10 +86,9 @@ internal partial class ProjectionMatrixBindGroup : IBindGroup<ProjectionMatrixBi
                         Visibility = ShaderStage.Vertex,
                     }
                 ]
-            };
-            layout = device.CreateBindGroupLayout(in layoutDescriptor);
-            return layout;
-        }
+        };
+        
+        return device.CreateBindGroupLayout(in layoutDescriptor);
     }
 
     private void CreateBindGroup()
@@ -185,9 +192,17 @@ internal partial class TextureBindGroup : IBindGroup<TextureBindGroup>
         {
             //TODO - How to share layout between instances
             if (layout is not null) return layout;
-            var layoutDescriptor = new BindGroupLayoutDescriptor
-            {
-                Entries =
+            
+            layout = CreateLayout(device);
+            return layout;
+        }
+    }
+
+    public static BindGroupLayout CreateLayout(Device device)
+    {
+        var layoutDescriptor = new BindGroupLayoutDescriptor
+        {
+            Entries =
                 [
                     new BindGroupLayoutEntry
                     {
@@ -210,10 +225,9 @@ internal partial class TextureBindGroup : IBindGroup<TextureBindGroup>
                         Visibility = ShaderStage.Fragment
                     }
                 ]
-            };
-            layout = device.CreateBindGroupLayout(in layoutDescriptor);
-            return layout;
-        }
+        };
+
+        return device.CreateBindGroupLayout(in layoutDescriptor);
     }
 
     private void CreateBindGroup()
