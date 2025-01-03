@@ -29,9 +29,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="$(SolutionDir)\SilkWrapped.SourceGenerator.Common\**\*.cs"
-             Exclude="$(SolutionDir)\SilkWrapped.SourceGenerator.Common\obj\**\*.cs">
+    <Compile Include="$(SolutionDir)\SilkWrapped.SourceGenerator.Common\**\*.cs" Exclude="$(SolutionDir)\SilkWrapped.SourceGenerator.Common\obj\**\*.cs">
       <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\VertexFormat.cs" Link="VertexFormat.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\VertexStepMode.cs" Link="VertexStepMode.cs" />
   </ItemGroup>
 </Project>

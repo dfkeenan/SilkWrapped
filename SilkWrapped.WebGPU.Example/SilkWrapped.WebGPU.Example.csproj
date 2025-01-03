@@ -33,6 +33,11 @@
   <ItemGroup>
     <ProjectReference Include="..\SilkWrapped.WebGPU.Extensions\SilkWrapped.WebGPU.Extensions.csproj" />
     <ProjectReference Include="..\SilkWrapped.WebGPU\SilkWrapped.WebGPU.csproj" />
+    
+    
+    <!--<ProjectReference Include="..\SilkWrapped.WebGPU.Extensions.SourceGenerator\SilkWrapped.WebGPU.Extensions.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"/>-->
   </ItemGroup>
 
 </Project>

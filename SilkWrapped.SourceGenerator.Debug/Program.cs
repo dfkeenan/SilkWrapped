@@ -8,13 +8,14 @@ var source =
 """
 using System.Numerics;
 using System.Runtime.InteropServices;
+using SilkWrapped.WebGPU;
 //using Silk.NET.Maths;
 
 namespace SilkWrapped.WebGPU.Example;
 
-[VertexStruct(VertexStepMode.Instance)]
+[VertexStruct]
 [StructLayout(LayoutKind.Sequential)]
-internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord);
+internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord, int Test);
 
 """;
 
@@ -28,7 +29,11 @@ var types = new[]
     typeof(SilkWrapped.WebGPU.GraphicsDeviceManager).GetTypeInfo(),
 };
 
-var metadataReferences = AppDomain.CurrentDomain.GetAssemblies().Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
+var sourceGeneratorAssembly = typeof(VectorStructSourceGenerator).GetTypeInfo().Assembly;
+
+var metadataReferences = AppDomain.CurrentDomain.GetAssemblies()
+                                  .Where(a => a != sourceGeneratorAssembly)
+                                  .Select(a => MetadataReference.CreateFromFile(a.Location)).ToList();
 
 var compilation = CSharpCompilation.Create("compilation",
                 [syntaxTree],

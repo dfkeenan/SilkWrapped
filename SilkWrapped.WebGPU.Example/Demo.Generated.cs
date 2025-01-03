@@ -10,7 +10,7 @@ internal readonly partial record struct Vertex : IVertexStruct
         int offset = 0;
         var attributes = new VertexAttribute[2];
 
-        attributes[0] = new ()
+        attributes[0] = new()
         {
             Format = VertexFormat.Float32x2,
             Offset = (ulong)offset,

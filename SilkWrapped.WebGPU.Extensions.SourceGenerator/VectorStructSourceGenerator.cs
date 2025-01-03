@@ -40,6 +40,9 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         return false;
     }
 
+    private static readonly SymbolDisplayFormat TypeDisplayFormat = SymbolDisplayFormat.FullyQualifiedFormat
+                                .RemoveMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
     private static DeclartionInfo? GetDeclartionInfo(
         SemanticModel semanticModel,
         ISymbol targetSymbol,
@@ -50,23 +53,28 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         if (targetSymbol is not INamedTypeSymbol namedType) return null;
         if (attributes is not [AttributeData attribute]) return null;
 
-        var fieldTypes = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+        var fieldTypes = ImmutableArray.CreateBuilder<string>();
 
         foreach (var member in namedType.GetMembers())
         {
-            if (member is IFieldSymbol {Type: INamedTypeSymbol fieldType })
+            if (member is IFieldSymbol { Type: INamedTypeSymbol fieldType })
             {
-                fieldTypes.Add(fieldType);
+
+                fieldTypes.Add(fieldType.ToDisplayString(TypeDisplayFormat));
             }
-            
         }
-        
+
+        var vertexStepMode = attribute.ConstructorArguments switch
+        {
+        [{ Value: int stepMode }] => (VertexStepMode)stepMode,
+            _ => VertexStepMode.Vertex
+        };
 
         return new DeclartionInfo(
             namedType.Name,
             namedType.ContainingNamespace.ToDisplayString(),
             decl.GetDeclaration(),
-            attribute,
+            vertexStepMode,
             fieldTypes.ToImmutable());
     }
 
@@ -75,8 +83,8 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         string Name,
         string Namespace,
         string Declaration,
-        AttributeData Attribute,
-        ImmutableArray<INamedTypeSymbol> FieldTypes)
+        VertexStepMode VertexStepMode,
+        ImmutableArray<string> FieldTypes)
     {
         public string HintName => $"{Namespace}.{Name}.g.s";
 
@@ -103,21 +111,31 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
 
                         for (int i = 0; i < FieldTypes.Length; i++)
                         {
+                            var typeName = FieldTypes[i];
+
                             sb.AppendLine($"attributes[{i}] = new ()");
                             using (sb.BeginBlock(closeNewLine: false))
                             {
-                                sb.AppendLine($"//Format = I don't Know,");
+                                if (CommonVertexFormats.TryGetFormat(typeName, out var format))
+                                {
+                                    sb.AppendLine($"Format = {format},");
+                                }
+                                else
+                                {
+                                    sb.AppendLine($"//Format = I don't Know,");
+                                }
+
                                 sb.AppendLine($"Offset = (ulong)offset,");
                                 sb.AppendLine($"ShaderLocation = {i}");
                             }
                             sb.AppendLine(";");
 
-                            if(i < FieldTypes.Length - 1)
+                            if (i < FieldTypes.Length - 1)
                             {
-                                var typeName = FieldTypes[i].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
                                 sb.AppendLine($"offset += {CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{typeName}>();");
                             }
-                            
+
                             sb.AppendLine();
                         }
 
@@ -125,13 +143,13 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                         using (sb.BeginBlock(closeNewLine: false))
                         {
                             sb.AppendLine("Attributes = attributes,");
-                            sb.AppendLine($"StepMode = {SGNamespaces.SWWebGPU["VertexStepMode"]}.GetMeFromAttribute,");
+                            sb.AppendLine($"StepMode = {SGNamespaces.SWWebGPU["VertexStepMode"]}.{VertexStepMode},");
                             sb.AppendLine($"ArrayStride = (ulong){CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{Name}>()");
                         }
                         sb.AppendLine(";");
+                        sb.AppendLine("return vertexBufferLayout;");
                     }
 
-                    sb.AppendLine("return vertexBufferLayout;");
                 }
             }
             return sb.ToString();
