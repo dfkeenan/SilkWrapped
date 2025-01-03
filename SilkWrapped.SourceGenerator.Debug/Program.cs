@@ -17,6 +17,19 @@ namespace SilkWrapped.WebGPU.Example;
 [StructLayout(LayoutKind.Sequential)]
 internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord, int Test);
 
+[BindGroup]
+internal partial class ProjectionMatrixBindGroup(Device device)
+{
+    [UniformBinding(ShaderStage.Vertex)]
+    public partial Matrix4x4 Projection { get; set; }
+}
+
+[BindGroup]
+internal partial class TextureBindGroup(
+     Device device,
+     [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,
+     [SamplerBinding(SamplerBindingType.Filtering, ShaderStage.Fragment)] Sampler sampler);
+
 """;
 
 var syntaxTree = CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest));
@@ -45,9 +58,10 @@ foreach (var item in compilation.GetDiagnostics().Where(d => d.Severity == Diagn
     Console.WriteLine(item.GetMessage());
 }
 
-var generator = new VectorStructSourceGenerator();
+var vectorGenerator = new VectorStructSourceGenerator();
+var bindGroupGenerator = new BindGroupSourceGenerator();
 
-GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+GeneratorDriver driver = CSharpGeneratorDriver.Create(vectorGenerator, bindGroupGenerator);
 
 driver = driver.RunGenerators(compilation!);
 driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCompilation, out var diagnostics);

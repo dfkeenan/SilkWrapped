@@ -35,7 +35,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\VertexFormat.cs" Link="VertexFormat.cs" />
-    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\VertexStepMode.cs" Link="VertexStepMode.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\VertexFormat.cs" Link="Generated\Enums\VertexFormat.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\VertexStepMode.cs" Link="Generated\Enums\VertexStepMode.cs" />
+
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\ShaderStage.cs" Link="Generated\Enums\ShaderStage.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\BufferBindingType.cs" Link="Generated\Enums\BufferBindingType.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\SamplerBindingType.cs" Link="Generated\Enums\SamplerBindingType.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\TextureSampleType.cs" Link="Generated\Enums\TextureSampleType.cs" />
+    <Compile Include="..\SilkWrapped.WebGPU\Generated\Enums\TextureViewDimension.cs" Link="Generated\Enums\TextureViewDimension.cs" />
+
   </ItemGroup>
 </Project>

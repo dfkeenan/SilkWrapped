@@ -114,7 +114,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                             var typeName = FieldTypes[i];
 
                             sb.AppendLine($"attributes[{i}] = new ()");
-                            using (sb.BeginBlock(closeNewLine: false))
+                            using (sb.BeginBlock(separator: ';'))
                             {
                                 if (CommonVertexFormats.TryGetFormat(typeName, out var format))
                                 {
@@ -128,7 +128,6 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                                 sb.AppendLine($"Offset = (ulong)offset,");
                                 sb.AppendLine($"ShaderLocation = {i}");
                             }
-                            sb.AppendLine(";");
 
                             if (i < FieldTypes.Length - 1)
                             {
@@ -140,13 +139,13 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                         }
 
                         sb.AppendLine($"var vertexBufferLayout = new {SGNamespaces.SWWebGPU["VertexBufferLayout"]}");
-                        using (sb.BeginBlock(closeNewLine: false))
+                        using (sb.BeginBlock(separator: ';'))
                         {
                             sb.AppendLine("Attributes = attributes,");
                             sb.AppendLine($"StepMode = {SGNamespaces.SWWebGPU["VertexStepMode"]}.{VertexStepMode},");
                             sb.AppendLine($"ArrayStride = (ulong){CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{Name}>()");
                         }
-                        sb.AppendLine(";");
+                        
                         sb.AppendLine("return vertexBufferLayout;");
                     }
 

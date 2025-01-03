@@ -11,7 +11,7 @@ public static class CSharpIndentedStringBuilderExtensions
         return builder.DecrementIndent().Append(close).AppendLine();
     }
 
-    public static IDisposable BeginBlock(this IndentedStringBuilder builder, char open = '{', bool closeNewLine = true)
+    public static IDisposable BeginBlock(this IndentedStringBuilder builder, char open = '{', char? separator = null)
     {
         var close = open switch
         {
@@ -22,7 +22,7 @@ public static class CSharpIndentedStringBuilderExtensions
 
         builder.Append(open).AppendLine().IncrementIndent();
 
-        return new BlockSuspender(builder, close, closeNewLine);
+        return new BlockSuspender(builder, close, separator);
     }
 
     public static IndentedStringBuilder AppendCompilerGenerated(this IndentedStringBuilder builder)
@@ -35,15 +35,16 @@ public static class CSharpIndentedStringBuilderExtensions
         return builder.AppendLine($"[{CommonNamespaces.ComponentModel["EditorBrowsable"]}({CommonNamespaces.ComponentModel["EditorBrowsableState"]}.Never)]");
     }
 
-    private sealed class BlockSuspender(IndentedStringBuilder builder, char close, bool closeNewLine) : IDisposable
+    private sealed class BlockSuspender(IndentedStringBuilder builder, char close, char? separator) : IDisposable
     {
         public void Dispose()
         {
             builder.DecrementIndent().Append(close);
-            if (closeNewLine)
+            if (separator.HasValue)
             {
-                builder.AppendLine();
+                builder.Append(separator.Value);
             }
+            builder.AppendLine();
         }
     }
 }
