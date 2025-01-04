@@ -15,7 +15,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
             "SilkWrapped.WebGPU.VertexStructAttribute",
             predicate: IsCandidate,
             transform: static (ctx, ct)
-                => GetDeclartionInfo(ctx.SemanticModel, ctx.TargetSymbol, ctx.TargetNode, ctx.Attributes))
+                => GetDeclartionInfo(ctx.TargetSymbol, ctx.TargetNode, ctx.Attributes))
             .Where(i => i is not null);
 
         context.RegisterSourceOutput(
@@ -44,7 +44,6 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                                 .RemoveMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
 
     private static DeclartionInfo? GetDeclartionInfo(
-        SemanticModel semanticModel,
         ISymbol targetSymbol,
         SyntaxNode targetNode,
         ImmutableArray<AttributeData> attributes)
@@ -84,7 +83,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         string Namespace,
         string Declaration,
         VertexStepMode VertexStepMode,
-        ImmutableArray<string> FieldTypes)
+        EquatableArray<string> FieldTypes)
     {
         public string HintName => $"{Namespace}.{Name}.g.s";
 
