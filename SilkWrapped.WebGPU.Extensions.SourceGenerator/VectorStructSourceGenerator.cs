@@ -100,7 +100,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                 using (sb.BeginBlock())
                 {
                     //sb.AppendCompilerGenerated().AppendNeverEditorBrowsable();
-                    sb.AppendCompilerGenerated();
+                    sb.AppendCompilerGenerated(nameof(VectorStructSourceGenerator));
                     sb.AppendLine($"public static {SGNamespaces.SWWebGPU["VertexBufferLayout"]} GetLayout()");
                     using (sb.BeginBlock())
                     {

@@ -25,9 +25,24 @@ public static class CSharpIndentedStringBuilderExtensions
         return new BlockSuspender(builder, close, separator);
     }
 
-    public static IndentedStringBuilder AppendCompilerGenerated(this IndentedStringBuilder builder)
+    public static IndentedStringBuilder AppendCompilerGenerated(
+        this IndentedStringBuilder builder, 
+        string generatorName,
+        bool includeNonUserCodeAttributes = true)
     {
-        return builder.AppendLine($"[{CommonNamespaces.CompilerServices["CompilerGenerated"]}]");
+        // We can use this class to get the assembly, as all files for generators are just included
+        // via shared projects. As such, the assembly will be the same as the generator type itself.
+        Version assemblyVersion = typeof(IndentedStringBuilder).Assembly.GetName().Version;
+
+        builder.AppendLine($"""[{CommonNamespaces.Compiler["GeneratedCode"]}("{generatorName}", "{assemblyVersion}")]""");
+
+        if (includeNonUserCodeAttributes) 
+        {
+            builder.AppendLine($"""[{CommonNamespaces.Diagnostics["DebuggerNonUserCode"]}]""");
+            builder.AppendLine($"""[{CommonNamespaces.Diagnostics["CodeAnalysis.ExcludeFromCodeCoverage"]}]""");
+        }
+
+        return builder;
     }
 
     public static IndentedStringBuilder AppendNeverEditorBrowsable(this IndentedStringBuilder builder)

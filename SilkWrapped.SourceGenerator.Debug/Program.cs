@@ -18,7 +18,7 @@ namespace SilkWrapped.WebGPU.Example;
 internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord, int Test);
 
 [BindGroup]
-internal partial class ProjectionMatrixBindGroup(Device device)
+internal partial class ProjectionMatrixBindGroup(Device steve)
 {
     [UniformBinding(ShaderStage.Vertex)]
     public partial Matrix4x4 Projection { get; set; }
