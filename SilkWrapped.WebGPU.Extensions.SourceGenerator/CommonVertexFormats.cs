@@ -15,7 +15,12 @@ internal static class CommonVertexFormats
 
     private static void AddFormat(string type, VertexFormat format)
     {
-        typeMap.Add(type, $"{SGNamespaces.SWWebGPU[nameof(VertexFormat)]}.{format}");
+        typeMap.Add(type, GetFormatName(format));
+    }
+
+    public static string GetFormatName(VertexFormat format)
+    {
+        return $"{SGNamespaces.SWWebGPU[nameof(VertexFormat)]}.{format}";
     }
 
     private static void AddFormat<T>(VertexFormat format)

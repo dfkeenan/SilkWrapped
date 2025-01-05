@@ -15,7 +15,7 @@ namespace SilkWrapped.WebGPU.Example;
 
 [VertexStruct]
 [StructLayout(LayoutKind.Sequential)]
-internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord, int Test);
+internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord, [field: VertexFormat(VertexFormat.Force32)]int Test);
 
 [BindGroup]
 internal partial class ProjectionMatrixBindGroup(Device steve)

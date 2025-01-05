@@ -52,14 +52,26 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
         if (targetSymbol is not INamedTypeSymbol namedType) return null;
         if (attributes is not [AttributeData attribute]) return null;
 
-        var fieldTypes = ImmutableArray.CreateBuilder<string>();
+        var fieldTypes = ImmutableArray.CreateBuilder<FieldType>();
 
         foreach (var member in namedType.GetMembers())
         {
             if (member is IFieldSymbol { Type: INamedTypeSymbol fieldType })
             {
+                VertexFormat? vertexFormat = null;
+                var fieldAttributes = member.GetAttributes();
+                
+                foreach(var fieldAttribute in fieldAttributes)
+                {
+                    if (fieldAttribute.AttributeClass?.GetFullyQualifiedMetadataName() == "SilkWrapped.WebGPU.VertexFormatAttribute" &&
+                        fieldAttribute.ConstructorArguments is [{Value: int format }])
+                    {
+                        vertexFormat = (VertexFormat)format;
+                        break;
+                    }
+                }
 
-                fieldTypes.Add(fieldType.ToDisplayString(TypeDisplayFormat));
+                fieldTypes.Add(new FieldType(fieldType.ToDisplayString(TypeDisplayFormat), vertexFormat));
             }
         }
 
@@ -77,13 +89,14 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
             fieldTypes.ToImmutable());
     }
 
+    private sealed record FieldType(string Type, VertexFormat? VertexFormat);
 
     private record DeclartionInfo(
         string Name,
         string Namespace,
         string Declaration,
         VertexStepMode VertexStepMode,
-        EquatableArray<string> FieldTypes)
+        EquatableArray<FieldType> FieldTypes)
     {
         public string HintName => $"{Namespace}.{Name}.g.s";
 
@@ -110,18 +123,22 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
 
                         for (int i = 0; i < FieldTypes.Length; i++)
                         {
-                            var typeName = FieldTypes[i];
+                            var fieldType = FieldTypes[i];
 
                             sb.AppendLine($"attributes[{i}] = new ()");
                             using (sb.BeginBlock(separator: ';'))
                             {
-                                if (CommonVertexFormats.TryGetFormat(typeName, out var format))
+                                if (fieldType.VertexFormat.HasValue)
+                                {
+                                    sb.AppendLine($"Format = {CommonVertexFormats.GetFormatName(fieldType.VertexFormat.Value)},");
+                                }
+                                else if (CommonVertexFormats.TryGetFormat(fieldType.Type, out var format))
                                 {
                                     sb.AppendLine($"Format = {format},");
                                 }
                                 else
                                 {
-                                    sb.AppendLine($"//Format = I don't Know,");
+                                    sb.AppendLine($"//Format = Should be an error,");
                                 }
 
                                 sb.AppendLine($"Offset = (ulong)offset,");
@@ -131,7 +148,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                             if (i < FieldTypes.Length - 1)
                             {
 
-                                sb.AppendLine($"offset += {CommonMethods.SizeOf(typeName)};");
+                                sb.AppendLine($"offset += {CommonMethods.SizeOf(fieldType.Type)};");
                             }
 
                             sb.AppendLine();
