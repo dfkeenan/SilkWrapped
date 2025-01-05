@@ -8,20 +8,27 @@ namespace SilkWrapped.WebGPU.Example;
 
 [VertexStruct]
 [StructLayout(LayoutKind.Sequential)]
-internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord);
+internal readonly partial record struct Vertex(Vector3 Position, Vector2 TexCoord, Vector3 Normal, Vector4 Color);
 
 [BindGroup]
-internal partial class ProjectionMatrixBindGroup(Device device)
+internal partial class CameraBindGroup(Device device)
 {
+    [UniformBinding(ShaderStage.Vertex)]
+    public partial Matrix4x4 View { get; set; }
+
     [UniformBinding(ShaderStage.Vertex)]
     public partial Matrix4x4 Projection { get; set; }
 }
 
 [BindGroup]
-internal partial class TextureBindGroup(
+internal partial class ModelBindGroup(
      Device device,
      [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,
-     [SamplerBinding(SamplerBindingType.Filtering, ShaderStage.Fragment)] Sampler sampler);
+     [SamplerBinding(SamplerBindingType.Filtering, ShaderStage.Fragment)] Sampler sampler)
+{
+    [UniformBinding(ShaderStage.Vertex)]
+    public partial Matrix4x4 World { get; set; }
+}
 
 internal class Demo : IDisposable
 {
@@ -31,15 +38,18 @@ internal class Demo : IDisposable
     private ShaderModule? shader;
     private RenderPipeline? renderPipeline;
 
+    private MeshData<Vertex> cube = Shapes.Cube(new Vector3(3, 3, 3));
     private Buffer<Vertex>? vertexBuffer;
+    private Buffer<uint>? indexBuffer;
 
     private Texture? texture;
     private TextureView? textureView;
     private Sampler? sampler;
 
-    private TextureBindGroup? textureBindGroup;
-    private ProjectionMatrixBindGroup? projectionMatrixBindGroup;
+    private ModelBindGroup? modelBindGroup;
+    private CameraBindGroup? cameraBindGroup;
 
+    private Texture? depthTexture;
     public GraphicsDeviceManager Graphics { get; set; }
 
     public Demo()
@@ -52,6 +62,20 @@ internal class Demo : IDisposable
 
         window = Window.Create(options);
         Graphics = new GraphicsDeviceManager(window);
+
+        Graphics.DeviceLost += (r, m) =>
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"{r} - {m}");
+            Console.ResetColor();
+        };
+
+        Graphics.UncapturedError += (r, m) =>
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"{r} - {m}");
+            Console.ResetColor();
+        };
 
         //Assign events.
         window.Load += OnLoad;
@@ -77,14 +101,18 @@ internal class Demo : IDisposable
     {
         renderPipeline?.Dispose();
 
-        projectionMatrixBindGroup?.Dispose();
+        cameraBindGroup?.Dispose();
 
+        indexBuffer?.Dispose();
         vertexBuffer?.Dispose();
-        textureBindGroup?.Dispose();
+        modelBindGroup?.Dispose();
         textureView?.Dispose();
         texture?.Dispose();
         sampler?.Dispose();
         shader?.Dispose();
+
+        depthTexture?.Dispose();
+
         Graphics?.Dispose();
         input?.Dispose();
         input = null;
@@ -95,6 +123,7 @@ internal class Demo : IDisposable
     private void FramebufferResize(Vector2D<int> size)
     {
         Graphics.ResizeSwapChain();
+        CreateDepthTexture(size);
         UpdateProjectionMatrix();
     }
 
@@ -103,27 +132,38 @@ internal class Demo : IDisposable
         input = window.CreateInput();
         keyboard = input.Keyboards[0];
 
+        CreateDepthTexture(window.FramebufferSize);
+
         var shaderCode =
             """
             struct VertexOutputs {
                 //The position of the vertex
                 @builtin(position) position: vec4<f32>,
                 //The texture cooridnate of the vertex
-                @location(0) tex_coord: vec2<f32>
+                @location(0) tex_coord: vec2<f32>,
+                @location(1) color: vec4<f32>
+            
             }
 
-            @group(1) @binding(0) var<uniform> projection_matrix: mat4x4<f32>;
+            @group(1) @binding(0) var<uniform> view_matrix: mat4x4<f32>;
+            @group(1) @binding(1) var<uniform> projection_matrix: mat4x4<f32>;
+            
 
             @vertex
             fn vs_main(
-                @location(0) pos: vec2<f32>,
-                @location(1) tex_coord: vec2<f32>
+                @location(0) pos: vec3<f32>,
+                @location(1) tex_coord: vec2<f32>,
+                @location(2) normal: vec3<f32>,
+                @location(3) color: vec4<f32>
+            
             ) -> VertexOutputs {
                 var output: VertexOutputs;
 
-                output.position = projection_matrix * vec4<f32>(pos, 0.0, 1.0);
-                output.tex_coord = tex_coord;
+                var mat = projection_matrix * view_matrix * world_matrix;
 
+                output.position =  mat * vec4<f32>(pos, 1.0);
+                output.tex_coord = tex_coord;
+                output.color = color;
                 return output;
             }
 
@@ -131,10 +171,13 @@ internal class Demo : IDisposable
             @group(0) @binding(0) var t: texture_2d<f32>;
             //The sampler we're using to sample the texture
             @group(0) @binding(1) var s: sampler;
+            @group(0) @binding(2) var<uniform> world_matrix: mat4x4<f32>;
 
             @fragment
             fn fs_main(input: VertexOutputs) -> @location(0) vec4<f32> {
-                return textureSample(t, s, input.tex_coord);
+                var color = textureSample(t, s, input.tex_coord);
+
+                return mix(input.color, vec4<f32>(color.rgb, 1), color.a); 
             }
             """;
 
@@ -145,46 +188,47 @@ internal class Demo : IDisposable
 
         sampler = Graphics.Device.CreateSampler(FilterMode.Linear, MipmapFilterMode.Linear);
 
-        textureBindGroup = new TextureBindGroup(Graphics.Device, textureView, sampler);
-        projectionMatrixBindGroup = new ProjectionMatrixBindGroup(Graphics.Device);
+        modelBindGroup = new ModelBindGroup(Graphics.Device, textureView, sampler)
+        {
+            World = Matrix4x4.Identity,
+        };
+        cameraBindGroup = new CameraBindGroup(Graphics.Device);
         UpdateProjectionMatrix();
 
-        { //Create vertex buffer
+        //Get a queue
+        using var queue = Graphics.Device.GetQueue();
 
-            vertexBuffer = Graphics.Device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, 6);
+        vertexBuffer = Graphics.Device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, (ulong)cube.Verticies.Length);
+        queue.WriteBuffer(vertexBuffer, [.. cube.Verticies]);
 
-            //Get a queue
-            using var queue = Graphics.Device.GetQueue();
-
-            const float xPos = 100;
-            const float yPos = 100;
-            const float width = 271;
-            const float height = 271;
-
-            //Fill data with a quad with a CCW front face
-            ReadOnlySpan<Vertex> data =
-            [
-                new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
-                new Vertex(new Vector2(xPos + width, yPos), new Vector2(1, 0)),  //Top right
-                new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
-                new Vertex(new Vector2(xPos, yPos), new Vector2(0, 0)), //Top left
-                new Vertex(new Vector2(xPos + width, yPos + height), new Vector2(1, 1)),   //Bottom right
-                new Vertex(new Vector2(xPos, yPos + height), new Vector2(0, 1)),  //Bottom left
-            ];
-
-            //Write the data to the buffer
-            queue.WriteBuffer(vertexBuffer, data);
-        } //Create vertex buffer
+        indexBuffer = Graphics.Device.CreateBuffer<uint>(BufferUsage.Index | BufferUsage.CopyDst, (ulong)cube.Indices.Length);
+        queue.WriteBuffer(indexBuffer, [.. cube.Indices]);
 
 
         CreateRenderPipeline();
     }
 
+    private void CreateDepthTexture(Vector2D<int> framebufferSize)
+    {
+        depthTexture?.Dispose();
+
+        var depthDescription = new TextureDescriptor
+        {
+            Size = new Extent3D((uint)framebufferSize.X, (uint)framebufferSize.Y, 1),
+            Format = TextureFormat.Depth24Plus,
+            Usage = TextureUsage.RenderAttachment,
+            Dimension = TextureDimension.Dimension2D,
+            SampleCount = 1,
+            MipLevelCount = 1,
+        };
+        depthTexture = Graphics.Device.CreateTexture(in depthDescription);
+    }
+
     private unsafe void CreateRenderPipeline()
     {
         using var pipelineLayout = Graphics.Device!.CreatePipelineLayout(
-            textureBindGroup,
-            projectionMatrixBindGroup);
+            modelBindGroup,
+            cameraBindGroup);
 
         var renderPipelineDescriptor = new RenderPipelineDescriptor
         {
@@ -199,8 +243,9 @@ internal class Demo : IDisposable
             {
                 Topology = PrimitiveTopology.TriangleList,
                 StripIndexFormat = IndexFormat.Undefined,
-                FrontFace = FrontFace.Ccw,
-                CullMode = CullMode.None
+                FrontFace = FrontFace.CW,
+                CullMode = CullMode.None,
+
             },
             Multisample = new MultisampleState
             {
@@ -222,7 +267,21 @@ internal class Demo : IDisposable
                     }
                 ]
             },
-            DepthStencil = null,
+            DepthStencil = new DepthStencilState()
+            {
+                DepthWriteEnabled = true,
+                DepthCompare = CompareFunction.Less,
+                Format = TextureFormat.Depth24Plus,
+
+                StencilFront = new StencilFaceState()
+                {
+                    Compare = CompareFunction.Never,
+                },
+                StencilBack = new StencilFaceState()
+                {
+                    Compare = CompareFunction.Never,
+                }
+            }
         };
 
         renderPipeline = Graphics.Device.CreateRenderPipeline(in renderPipelineDescriptor);
@@ -230,24 +289,46 @@ internal class Demo : IDisposable
 
     private unsafe void UpdateProjectionMatrix()
     {
-        projectionMatrixBindGroup!.Projection
-            = Matrix4x4.CreateOrthographicOffCenter(0, window!.Size.X, window.Size.Y, 0, 0, 1);
+        cameraBindGroup!.Projection
+            = Matrix4x4.CreatePerspectiveFieldOfView(
+                MathF.PI / 2,
+                window.FramebufferSize.X / window.FramebufferSize.Y,
+                0.1f,
+                100.0f);
+
+        cameraBindGroup.View = Matrix4x4.CreateLookAt(new(0, 5, 5), new Vector3(0, 0, 0), Vector3.UnitY);
     }
 
-    private void OnUpdate(double obj)
+    private void OnUpdate(double delta)
     {
         if (keyboard!.IsKeyPressed(Key.Escape))
         {
             window!.Close();
         }
-    }
 
-    private unsafe void OnRender(double obj)
+        var rotation = Matrix4x4.CreateFromYawPitchRoll((float)Math.Sin(window.Time), (float)Math.Cos(window.Time), 0);
+        var translation = Matrix4x4.CreateTranslation(0, (float)Math.Sin(window.Time), 0);
+        modelBindGroup.World = rotation * translation;
+
+        totalTime += delta;
+        timer.Enqueue(delta);
+        while (totalTime > 1) totalTime -= timer.Dequeue();
+        var fps = timer.Count;
+
+        window.Title = $"WebGPU - FPS: {fps}";
+
+    }
+    double totalTime = 0;
+    Queue<double> timer = new Queue<double>();
+
+    private unsafe void OnRender(double delta)
     {
-        if (renderPipeline is null || vertexBuffer is null) return;
+        if (renderPipeline is null || vertexBuffer is null || indexBuffer is null) return;
 
         using var surfaceTextureView = Graphics.GetCurrentSurfaceTextureView();
         if (surfaceTextureView is null) return;
+
+        using var depthView = depthTexture?.CreateView();
 
         var renderPassDesc = new RenderPassDescriptor
         {
@@ -256,27 +337,109 @@ internal class Demo : IDisposable
                 new RenderPassColorAttachment
                 {
                     ClearValue = new(0, 0, 0, 1),
-                    //DepthSlice = 0,
+                    DepthSlice = 1,
                     LoadOp = LoadOp.Clear,
                     StoreOp = StoreOp.Store,
                     View = surfaceTextureView,
                     ResolveTarget = null,
                 }
             ],
+            DepthStencilAttachment = new()
+            {
+                View = depthView!,
+                DepthClearValue = 1,
+                DepthLoadOp = LoadOp.Clear,
+                DepthStoreOp = StoreOp.Store,
+            }
         };
 
         using var commandEncoder = Graphics.Device!.CreateCommandEncoder();
 
         using var renderPassEncoder = commandEncoder.BeginRenderPass(in renderPassDesc);
         renderPassEncoder.SetPipeline(renderPipeline);
-        renderPassEncoder.SetBindGroup(0, textureBindGroup!);
-        renderPassEncoder.SetBindGroup(1, projectionMatrixBindGroup!);
+        renderPassEncoder.SetBindGroup(0, modelBindGroup!);
+        renderPassEncoder.SetBindGroup(1, cameraBindGroup!);
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.Size);
-        renderPassEncoder.Draw(6, 1, 0, 0);
+        renderPassEncoder.SetIndexBuffer(indexBuffer, IndexFormat.Uint32, 0, indexBuffer.Size);
+        renderPassEncoder.DrawIndexed((uint)cube.Indices.Length, 1, 0, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
         Graphics.Queue!.Submit(commandBuffer);
         Graphics.Surface.Present();
         window!.SwapBuffers();
+    }
+}
+
+
+internal record MeshData<T>(T[] Verticies, uint[] Indices, bool IsLeftHanded);
+
+internal static class Shapes
+{
+    private const int CubeFaceCount = 6;
+
+    private static readonly Vector3[] FaceNormals = new Vector3[CubeFaceCount]
+    {
+        new Vector3(0, 0, 1),
+        new Vector3(0, 0, -1),
+        new Vector3(1, 0, 0),
+        new Vector3(-1, 0, 0),
+        new Vector3(0, 1, 0),
+        new Vector3(0, -1, 0),
+    };
+
+    private static readonly Vector2[] TextureCoordinates = new Vector2[4]
+    {
+        new Vector2(1, 0),
+        new Vector2(1, 1),
+        new Vector2(0, 1),
+        new Vector2(0, 0),
+    };
+
+    public static MeshData<Vertex> Cube(Vector3 size, float uScale = 1.0f, float vScale = 1.0f, Vector4? color = null, bool toLeftHanded = false)
+    {
+        var vertices = new Vertex[CubeFaceCount * 4];
+        var indices = new uint[CubeFaceCount * 6];
+
+        var texCoords = new Vector2[4];
+        for (var i = 0; i < 4; i++)
+        {
+            texCoords[i] = TextureCoordinates[i] * new Vector2(uScale, vScale);
+        }
+
+        size /= 2.0f;
+
+        int vertexCount = 0;
+        int indexCount = 0;
+        // Create each face in turn.
+        for (uint i = 0; i < CubeFaceCount; i++)
+        {
+            Vector3 normal = FaceNormals[i];
+
+            // Get two vectors perpendicular both to the face normal and to each other.
+            Vector3 basis = (i >= 4) ? Vector3.UnitZ : Vector3.UnitY;
+
+            Vector3 side1 = Vector3.Cross(normal, basis);
+
+            Vector3 side2 = Vector3.Cross(normal, side1);
+
+            // Six indices (two triangles) per face.
+            uint vbase = i * 4;
+            indices[indexCount++] = (vbase + 0);
+            indices[indexCount++] = (vbase + 1);
+            indices[indexCount++] = (vbase + 2);
+
+            indices[indexCount++] = (vbase + 0);
+            indices[indexCount++] = (vbase + 2);
+            indices[indexCount++] = (vbase + 3);
+
+            // Four vertices per face.
+            vertices[vertexCount++] = new Vertex((normal - side1 - side2) * size, texCoords[0], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new Vertex((normal - side1 + side2) * size, texCoords[1], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new Vertex((normal + side1 + side2) * size, texCoords[2], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new Vertex((normal + side1 - side2) * size, texCoords[3], normal, color ?? new Vector4(1, 1, 1, 1));
+        }
+
+        // Create the primitive object.
+        return new MeshData<Vertex>(vertices, indices, toLeftHanded);
     }
 }
