@@ -75,11 +75,26 @@ driver = driver.RunGeneratorsAndUpdateCompilation(compilation!, out var outputCo
 //    Directory.CreateDirectory("sourceout");
 //}
 
+
+
+foreach (var item in outputCompilation.GetDiagnostics())
+{
+    switch (item.Severity)
+    {
+        case DiagnosticSeverity.Error: Console.ForegroundColor = ConsoleColor.Red; break;
+        case DiagnosticSeverity.Warning: Console.ForegroundColor = ConsoleColor.DarkYellow; break;
+    }
+
+    Console.WriteLine($"{item.Location.GetLineSpan()} - {item.GetMessage()}");
+    Console.ResetColor();
+}
+
+Console.WriteLine();
+
 foreach (var item in outputCompilation.SyntaxTrees.Where(t => !string.IsNullOrEmpty(t.FilePath)))
 {
     //File.WriteAllText($@"sourceout\{Path.GetFileName(item.FilePath)}", item.GetText().ToString());
     await CodeConsole.Write(item.GetText().ToString());
 }
-
 
 Console.WriteLine();

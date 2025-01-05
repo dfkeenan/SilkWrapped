@@ -41,4 +41,23 @@ public static class SyntaxExtensions
 
         return result;
     }
+
+    public static string GetDeclaration(this PropertyDeclarationSyntax declaration, string? typeReplacement = null)
+    {
+
+        var result = declaration.GetDeclaration();
+
+        if (typeReplacement != null)
+        {
+            if (declaration is PropertyDeclarationSyntax property)
+            {
+                var typeStart = property.Type.FullSpan.Start - declaration.Modifiers.Span.Start;
+                var typeLength = property.Type.Span.Length;
+
+                result = result.Substring(0, typeStart) + typeReplacement + result.Substring(typeStart + typeLength);
+            }
+        }
+
+        return result;
+    }
 }

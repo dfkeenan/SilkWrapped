@@ -26,7 +26,7 @@ public static class CSharpIndentedStringBuilderExtensions
     }
 
     public static IndentedStringBuilder AppendCompilerGenerated(
-        this IndentedStringBuilder builder, 
+        this IndentedStringBuilder builder,
         string generatorName,
         bool includeNonUserCodeAttributes = true)
     {
@@ -36,7 +36,7 @@ public static class CSharpIndentedStringBuilderExtensions
 
         builder.AppendLine($"""[{CommonNamespaces.Compiler["GeneratedCode"]}("{generatorName}", "{assemblyVersion}")]""");
 
-        if (includeNonUserCodeAttributes) 
+        if (includeNonUserCodeAttributes)
         {
             builder.AppendLine($"""[{CommonNamespaces.Diagnostics["DebuggerNonUserCode"]}]""");
             builder.AppendLine($"""[{CommonNamespaces.Diagnostics["CodeAnalysis.ExcludeFromCodeCoverage"]}]""");

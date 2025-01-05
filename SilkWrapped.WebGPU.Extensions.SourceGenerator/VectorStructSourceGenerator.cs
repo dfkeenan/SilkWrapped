@@ -131,7 +131,7 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                             if (i < FieldTypes.Length - 1)
                             {
 
-                                sb.AppendLine($"offset += {CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{typeName}>();");
+                                sb.AppendLine($"offset += {CommonMethods.SizeOf(typeName)};");
                             }
 
                             sb.AppendLine();
@@ -142,9 +142,9 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
                         {
                             sb.AppendLine("Attributes = attributes,");
                             sb.AppendLine($"StepMode = {SGNamespaces.SWWebGPU["VertexStepMode"]}.{VertexStepMode},");
-                            sb.AppendLine($"ArrayStride = (ulong){CommonNamespaces.CompilerServices["Unsafe"]}.SizeOf<{Name}>()");
+                            sb.AppendLine($"ArrayStride = (ulong){CommonMethods.SizeOf(Name)}");
                         }
-                        
+
                         sb.AppendLine("return vertexBufferLayout;");
                     }
 

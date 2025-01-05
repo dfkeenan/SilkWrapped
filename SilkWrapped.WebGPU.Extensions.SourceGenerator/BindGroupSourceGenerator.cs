@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Reflection.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -35,7 +34,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
         if (node is not ClassDeclarationSyntax decl) return false;
         if (!decl.IsPartial()) return false;
         if (decl.ParameterList is null) return false;
-        
+
 
         return true;
     }
@@ -50,14 +49,14 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
     {
         if (targetNode is not ClassDeclarationSyntax decl) return null;
         if (targetSymbol is not INamedTypeSymbol namedType) return null;
-        if (decl.ParameterList?.Parameters is not SeparatedSyntaxList<ParameterSyntax> {Count: > 0 } parameters) return null;
+        if (decl.ParameterList?.Parameters is not SeparatedSyntaxList<ParameterSyntax> { Count: > 0 } parameters) return null;
 
         string? deviceParameterName = null;
         var bindings = ImmutableArray.CreateBuilder<BindingInfo>();
 
         foreach (var parameter in parameters)
         {
-            if(semanticModel.GetDeclaredSymbol(parameter) is not IParameterSymbol parameterSymbol) continue;
+            if (semanticModel.GetDeclaredSymbol(parameter) is not IParameterSymbol parameterSymbol) continue;
 
             if (parameterSymbol.Type.GetFullyQualifiedMetadataName() == "SilkWrapped.WebGPU.Device")
             {
@@ -65,7 +64,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                 continue;
             }
 
-            if (parameterSymbol.GetAttributes() is not {IsEmpty:false } attributes) continue;
+            if (parameterSymbol.GetAttributes() is not { IsEmpty: false } attributes) continue;
 
             foreach (var attribute in attributes)
             {
@@ -88,7 +87,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
             {
                 if (GetBindingInfo(propertySymbol.Name, propertySymbol.Type, attribute) is not BindingInfo bindingInfo) continue;
 
-                bindings.Add(bindingInfo with { IsProperty = true, Declaration = property.GetDeclaration()});
+                bindings.Add(bindingInfo with { IsProperty = true, Declaration = property.GetDeclaration(bindingInfo.Type) });
             }
 
         }
@@ -191,9 +190,10 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
         public string GetSource()
         {
             var sb = new IndentedStringBuilder();
-            var deviceName = "device";
-            var layoutName = "layout";
-            var groupName = "group";
+            var deviceName = "__device";
+            var layoutName = "__layout";
+            var groupName = "__group";
+            var hasBuffers = Bindings.Any(b => b is BufferBindingInfo);
 
             sb.AppendLine($"namespace {Namespace}");
             using (sb.BeginBlock())
@@ -202,12 +202,51 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                     .AppendIndent().AppendLine($": {SGNamespaces.SWWebGPU["IBindGroup"]}<{Name}>");
                 using (sb.BeginBlock())
                 {
-                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
+                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
                     sb.AppendLine($"private readonly {SGNamespaces.SWWebGPU["Device"]} {deviceName} = {DeviceParameterName};").AppendLine();
-                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
+                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
                     sb.AppendLine($"private {SGNamespaces.SWWebGPU["BindGroupLayout"]} {layoutName};").AppendLine();
-                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
+                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
                     sb.AppendLine($"private {SGNamespaces.SWWebGPU["BindGroup"]} {groupName};").AppendLine();
+
+                    if (hasBuffers)
+                    {
+                        sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
+                        sb.AppendNeverEditorBrowsable();
+                        sb.AppendLine("private Changes __changes = Changes.None;");
+                    }
+                    sb.AppendLine();
+
+                    foreach (var binding in Bindings)
+                    {
+                        if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bindingInfo) continue;
+
+                        sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
+                        sb.AppendNeverEditorBrowsable();
+                        sb.AppendLine($"private {SGNamespaces.SWWebGPU["Buffer"]}<{bindingInfo.Type}> __{bindingInfo.Name}Buffer;");
+                        sb.AppendLine();
+
+                        sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
+                        sb.AppendNeverEditorBrowsable();
+                        sb.AppendLine($"private {bindingInfo.Type} __{bindingInfo.Name};");
+                        sb.AppendLine();
+
+                        if (binding.IsProperty && bindingInfo.Declaration is not null)
+                        {
+                            sb.AppendLine(bindingInfo.Declaration);
+                            using (sb.BeginBlock())
+                            {
+                                sb.AppendLine($"get => __{bindingInfo.Name};");
+                                sb.AppendLine("set");
+                                using (sb.BeginBlock())
+                                {
+                                    sb.AppendLine($"__{bindingInfo.Name} = value;");
+                                    sb.AppendLine($"__changes |= Changes.{bindingInfo.Name};");
+                                }
+                            }
+                        }
+                    }
+
 
                     sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
                     sb.AppendLine($"public {SGNamespaces.SWWebGPU["BindGroupLayout"]} Layout");
@@ -234,11 +273,49 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                             sb.AppendLine("Entries = ");
                             using (sb.BeginBlock('['))
                             {
-                                //TODO: BindGroupLayoutDescriptor.Entries
+                                for (int i = 0; i < Bindings.Length; i++)
+                                {
+                                    sb.AppendLine($"new {SGNamespaces.SWWebGPU["BindGroupLayoutEntry"]}");
+                                    using (sb.BeginBlock(separator: ','))
+                                    {
+                                        sb.AppendLine($"Binding = {i},");
+                                        switch (Bindings[i])
+                                        {
+                                            case BufferBindingInfo bufferBindingInfo:
+                                                sb.AppendLine("Buffer = new ()");
+                                                using (sb.BeginBlock(separator: ','))
+                                                {
+                                                    sb.AppendLine($"Type = {SGNamespaces.SWWebGPU["BufferBindingType"]}.{bufferBindingInfo.BufferBindingType},");
+                                                    sb.AppendLine($"MinBindingSize = (ulong){CommonMethods.SizeOf(bufferBindingInfo.Type)},");
+                                                    sb.AppendLine($"HasDynamicOffset = {bufferBindingInfo.HasDynamicOffset.ToString().ToLower()},");
+
+                                                }
+                                                break;
+                                            case SamplerBindingInfo samplerBindingInfo:
+                                                sb.AppendLine("Sampler = new ()");
+                                                using (sb.BeginBlock(separator: ','))
+                                                {
+                                                    sb.AppendLine($"Type = {SGNamespaces.SWWebGPU["SamplerBindingType"]}.{samplerBindingInfo.SamplerBindingType},");
+                                                }
+                                                break;
+                                            case TextureBindingInfo textureBindingInfo:
+                                                sb.AppendLine("Texture = new ()");
+                                                using (sb.BeginBlock(separator: ','))
+                                                {
+                                                    sb.AppendLine($"Multisampled = {textureBindingInfo.Multisampled.ToString().ToLower()},");
+                                                    sb.AppendLine($"SampleType = {SGNamespaces.SWWebGPU["TextureSampleType"]}.{textureBindingInfo.SampleType},");
+                                                    sb.AppendLine($"ViewDimension = {SGNamespaces.SWWebGPU["TextureViewDimension"]}.{textureBindingInfo.ViewDimension},");
+                                                }
+                                                break;
+
+                                        }
+                                        sb.AppendLine($"Visibility = {SGNamespaces.SWWebGPU["ShaderStage"]}.{Bindings[i].Visibility}");
+                                    }
+                                }
                             }
                         }
 
-                        sb.AppendLine($"return {deviceName}.CreateBindGroupLayout(in descriptor);");
+                        sb.AppendLine($"return device.CreateBindGroupLayout(in descriptor);");
                     }
                     sb.AppendLine();
 
@@ -248,8 +325,13 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                     {
                         sb.AppendLine($"if ({groupName} is not null) return;").AppendLine();
 
-                        //TODO: Create buffers
+                        foreach (var binding in Bindings)
+                        {
+                            if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bindingInfo) continue;
+                            sb.AppendLine($"__{binding.Name}Buffer ??= {deviceName}.CreateBuffer<{bindingInfo.Type}>({SGNamespaces.SWWebGPU["BufferUsage"]}.Uniform | {SGNamespaces.SWWebGPU["BufferUsage"]}.CopyDst);");
 
+                        }
+                        sb.AppendLine();
 
                         sb.AppendLine($"var descriptor = new {SGNamespaces.SWWebGPU["BindGroupDescriptor"]}");
                         using (sb.BeginBlock(separator: ';'))
@@ -258,7 +340,28 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                             sb.AppendLine("Entries = ");
                             using (sb.BeginBlock('['))
                             {
-                                //TODO: BindGroupDescriptor.Entries
+                                for (int i = 0; i < Bindings.Length; i++)
+                                {
+                                    sb.AppendLine($"new {SGNamespaces.SWWebGPU["BindGroupEntry"]}");
+                                    using (sb.BeginBlock(separator: ','))
+                                    {
+                                        sb.AppendLine($"Binding = {i},");
+                                        switch (Bindings[i])
+                                        {
+                                            case BufferBindingInfo bufferBindingInfo:
+                                                sb.AppendLine($"Buffer = __{bufferBindingInfo.Name}Buffer,");
+                                                sb.AppendLine($"Size = (ulong){CommonMethods.SizeOf(bufferBindingInfo.Type)},");
+                                                break;
+                                            case SamplerBindingInfo samplerBindingInfo:
+                                                sb.AppendLine($"Sampler = {samplerBindingInfo.Name},");
+                                                break;
+                                            case TextureBindingInfo textureBindingInfo:
+                                                sb.AppendLine($"TextureView = {textureBindingInfo.Name},");
+                                                break;
+
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -272,7 +375,23 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                     {
                         sb.AppendLine($"CreateBindGroup();").AppendLine();
 
-                        //TODO: Update buffers
+                        if (hasBuffers)
+                        {
+                            sb.AppendLine($"using var queue = {deviceName}.GetQueue();");
+
+                            foreach (var binding in Bindings)
+                            {
+                                if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bufferBindingInfo) continue;
+
+                                sb.AppendLine($"if (__changes.HasFlag(Changes.{binding.Name}))");
+                                using (sb.BeginBlock())
+                                {
+                                    sb.AppendLine($"queue.WriteBuffer(__{binding.Name}Buffer, __{binding.Name});");
+                                }
+                            }
+
+                            sb.AppendLine().AppendLine($"__changes = Changes.None;");
+                        }
                     }
                     sb.AppendLine();
 
@@ -284,7 +403,17 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                           .AppendLine($"{groupName} = null;");
                         sb.AppendLine($"{layoutName}?.Dispose();")
                           .AppendLine($"{layoutName} = null;");
-                        //TODO: Dispose buffers
+
+                        if (hasBuffers)
+                        {
+                            foreach (var binding in Bindings)
+                            {
+                                if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bufferBindingInfo) continue;
+
+                                sb.AppendLine($"__{binding.Name}Buffer?.Dispose();");
+                                sb.AppendLine($"__{binding.Name}Buffer = null;");
+                            }
+                        }
                     }
                     sb.AppendLine();
 
@@ -295,7 +424,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                         sb.AppendLine($"if (other is null) return false;")
                           .AppendLine("CreateBindGroup();")
                           .AppendLine("other.CreateBindGroup();")
-                          .AppendLine("return group.Equals(other.group);");
+                          .AppendLine($"return {groupName}.Equals(other.{groupName});");
                     }
                     sb.AppendLine();
 
@@ -329,8 +458,25 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                         sb.AppendLine($"obj.CreateBindGroup();")
                           .AppendLine($"return obj.{groupName};");
                     }
-                }
 
+                    if (hasBuffers)
+                    {
+                        sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
+                        sb.AppendNeverEditorBrowsable();
+                        sb.AppendLine($"[global::System.Flags]");
+                        sb.AppendLine($"private enum Changes");
+                        using (sb.BeginBlock())
+                        {
+                            sb.AppendLine($"None = 0,");
+                            for (int i = 0; i < Bindings.Length; i++)
+                            {
+                                if (Bindings[i] is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bufferBindingInfo) continue;
+
+                                sb.AppendLine($"{bufferBindingInfo.Name} = 1 << {i},");
+                            }
+                        }
+                    }
+                }
             }
             return sb.ToString();
         }
