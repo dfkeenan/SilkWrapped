@@ -1,0 +1,18 @@
+<Project>
+ <PropertyGroup>
+    <Authors>Daniel Keenan</Authors>
+    <PackageProjectUrl>https://dfkeenan.github.io/SilkWrapped/</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright © 2025</Copyright>
+    <RepositoryUrl>https://github.com/dfkeenan/SilkWrapped.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    
+    <!--<PackageIcon>PackageIcon-Red.png</PackageIcon>-->
+ </PropertyGroup>
+  <PropertyGroup>
+    <NuGetDestionationPath>$(MSBuildThisFileDirectory)..\build\packages</NuGetDestionationPath>
+  </PropertyGroup>
+  <!--<PropertyGroup Condition=" '$(Configuration)' == 'PublicRelease' ">
+    <PublicRelease>true</PublicRelease>
+  </PropertyGroup>-->
+</Project>
