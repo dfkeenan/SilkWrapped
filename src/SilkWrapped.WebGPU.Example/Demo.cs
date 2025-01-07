@@ -81,7 +81,6 @@ internal class Demo : IDisposable
         window.Load += OnLoad;
         window.Update += OnUpdate;
         window.Render += OnRender;
-        window.Closing += OnClosing;
         window.FramebufferResize += FramebufferResize;
 
     }
@@ -90,11 +89,6 @@ internal class Demo : IDisposable
     {
         //Run the window.
         window.Run();
-    }
-
-    private void OnClosing()
-    {
-        Dispose();
     }
 
     public void Dispose()
@@ -116,6 +110,7 @@ internal class Demo : IDisposable
         Graphics?.Dispose();
         input?.Dispose();
         input = null;
+
         window?.Dispose();
         window = null!;
     }
@@ -244,7 +239,7 @@ internal class Demo : IDisposable
                 Topology = PrimitiveTopology.TriangleList,
                 StripIndexFormat = IndexFormat.Undefined,
                 FrontFace = FrontFace.CW,
-                CullMode = CullMode.None,
+                CullMode = CullMode.Back,
 
             },
             Multisample = new MultisampleState
@@ -302,7 +297,7 @@ internal class Demo : IDisposable
     private void OnUpdate(double delta)
     {
         if (keyboard!.IsKeyPressed(Key.Escape))
-        {
+        { 
             window!.Close();
         }
 
