@@ -19,8 +19,8 @@ public static class DeviceExtensions
     }
 
     private static Texture LoadTexture<TPixel>(
-        this Device device, 
-        string fileName, 
+        this Device device,
+        string fileName,
         TextureFormat textureFormat = TextureFormat.Rgba8Unorm,
         uint sampleCount = 1,
         uint mipLevelCount = 1)
@@ -32,7 +32,7 @@ public static class DeviceExtensions
         using var image = Image.Load<TPixel>(fileName);
 
         var texture = device.CreateTexture(
-                                (uint)image.Width, 
+                                (uint)image.Width,
                                 (uint)image.Height,
                                 textureFormat,
                                 TextureUsage.CopyDst | TextureUsage.TextureBinding,

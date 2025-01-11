@@ -208,7 +208,7 @@ internal class Demo : IDisposable
         depthTexture?.Dispose();
 
         depthTexture = Graphics.Device.CreateTexture(
-            framebufferSize, 
+            framebufferSize,
             TextureFormat.Depth24Plus,
             TextureUsage.RenderAttachment);
     }
@@ -219,61 +219,14 @@ internal class Demo : IDisposable
             modelBindGroup,
             cameraBindGroup);
 
-        var renderPipelineDescriptor = new RenderPipelineDescriptor
-        {
-            Layout = pipelineLayout,
-            Vertex = new VertexState
-            {
-                Module = shader!,
-                EntryPoint = "vs_main",
-                Buffers = [Vertex.GetLayout()],
-            },
-            Primitive = new PrimitiveState
-            {
-                Topology = PrimitiveTopology.TriangleList,
-                StripIndexFormat = IndexFormat.Undefined,
-                FrontFace = FrontFace.CW,
-                CullMode = CullMode.Back,
-
-            },
-            Multisample = new MultisampleState
-            {
-                Count = 1,
-                Mask = ~0u,
-                AlphaToCoverageEnabled = false
-            },
-            Fragment = new FragmentState
-            {
-                Module = shader!,
-                EntryPoint = "fs_main",
-                Targets =
-                [
-                    new ColorTargetState
-                    {
-                        Format = Graphics.DefaultSurfaceFormat,
-                        Blend = BlendStates.NonPremultiplied,
-                        WriteMask = ColorWriteMask.All
-                    }
-                ]
-            },
-            DepthStencil = new DepthStencilState()
-            {
-                DepthWriteEnabled = true,
-                DepthCompare = CompareFunction.Less,
-                Format = TextureFormat.Depth24Plus,
-
-                StencilFront = new StencilFaceState()
-                {
-                    Compare = CompareFunction.Never,
-                },
-                StencilBack = new StencilFaceState()
-                {
-                    Compare = CompareFunction.Never,
-                }
-            }
-        };
-
-        renderPipeline = Graphics.Device.CreateRenderPipeline(in renderPipelineDescriptor);
+        renderPipeline = RenderPipelineDescriptor.Empty
+                            .WithLayout(pipelineLayout)
+                            .WithVertex<Vertex>(shader!, "vs_main")
+                            .WithPrimitive(PrimitiveTopology.TriangleList, CullMode.Back)
+                            .WithMultisampleState()
+                            .WithFragment(shader!, "fs_main", Graphics.DefaultSurfaceFormat, BlendStates.NonPremultiplied)
+                            .WithDepthStencil(TextureFormat.Depth24Plus, CompareFunction.Less)
+                            .Create(Graphics.Device);
     }
 
     private unsafe void UpdateProjectionMatrix()
@@ -291,7 +244,7 @@ internal class Demo : IDisposable
     private void OnUpdate(double delta)
     {
         if (keyboard!.IsKeyPressed(Key.Escape))
-        { 
+        {
             window!.Close();
         }
 
@@ -307,8 +260,9 @@ internal class Demo : IDisposable
         window.Title = $"WebGPU - FPS: {fps}";
 
     }
-    double totalTime = 0;
-    Queue<double> timer = new Queue<double>();
+
+    private double totalTime = 0;
+    private Queue<double> timer = new Queue<double>();
 
     private unsafe void OnRender(double delta)
     {

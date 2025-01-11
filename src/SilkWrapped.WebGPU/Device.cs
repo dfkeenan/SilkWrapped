@@ -67,11 +67,11 @@ public unsafe partial class Device
     }
 
     public Texture CreateTexture(
-        uint width, 
-        uint height, 
-        TextureFormat format, 
-        TextureUsage usage, 
-        uint sampleCount = 1, 
+        uint width,
+        uint height,
+        TextureFormat format,
+        TextureUsage usage,
+        uint sampleCount = 1,
         uint mipLevelCount = 1,
         params ReadOnlySpan<TextureFormat> viewFormats)
     {
