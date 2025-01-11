@@ -66,6 +66,29 @@ public unsafe partial class Device
         return CreateSampler(in descriptor);
     }
 
+    public Texture CreateTexture(
+        uint width, 
+        uint height, 
+        TextureFormat format, 
+        TextureUsage usage, 
+        uint sampleCount = 1, 
+        uint mipLevelCount = 1,
+        params ReadOnlySpan<TextureFormat> viewFormats)
+    {
+        var description = new TextureDescriptor
+        {
+            Size = new Extent3D(width, height, 1),
+            Format = format,
+            Usage = usage,
+            Dimension = TextureDimension.Dimension2D,
+            SampleCount = sampleCount,
+            MipLevelCount = mipLevelCount,
+            ViewFormats = viewFormats.Length > 0 ? viewFormats.ToArray() : null,
+        };
+
+        return CreateTexture(in description);
+    }
+
     partial void Disposing()
     {
 

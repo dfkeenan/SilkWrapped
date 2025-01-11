@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Silk.NET.Maths;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -17,7 +18,12 @@ public static class DeviceExtensions
         };
     }
 
-    private static Texture LoadTexture<TPixel>(this Device device, string fileName, TextureFormat textureFormat = TextureFormat.Rgba8Unorm)
+    private static Texture LoadTexture<TPixel>(
+        this Device device, 
+        string fileName, 
+        TextureFormat textureFormat = TextureFormat.Rgba8Unorm,
+        uint sampleCount = 1,
+        uint mipLevelCount = 1)
         where TPixel : unmanaged, IPixel<TPixel>
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -25,18 +31,13 @@ public static class DeviceExtensions
 
         using var image = Image.Load<TPixel>(fileName);
 
-        var descriptor = new TextureDescriptor
-        {
-            Size = new Extent3D((uint)image.Width, (uint)image.Height, 1),
-            Format = textureFormat,
-            Usage = TextureUsage.CopyDst | TextureUsage.TextureBinding,
-            MipLevelCount = 1,
-            SampleCount = 1,
-            Dimension = TextureDimension.Dimension2D,
-            ViewFormats = [textureFormat],
-        };
-
-        var texture = device.CreateTexture(in descriptor);
+        var texture = device.CreateTexture(
+                                (uint)image.Width, 
+                                (uint)image.Height,
+                                textureFormat,
+                                TextureUsage.CopyDst | TextureUsage.TextureBinding,
+                                sampleCount,
+                                mipLevelCount);
 
         using var queue = device.GetQueue();
 
@@ -73,6 +74,27 @@ public static class DeviceExtensions
                 }
             }
         );
+
+        return texture;
+    }
+
+    public static Texture CreateTexture(
+        this Device device,
+        Vector2D<int> size,
+        TextureFormat format,
+        TextureUsage usage,
+        uint sampleCount = 1,
+        uint mipLevelCount = 1,
+        params ReadOnlySpan<TextureFormat> viewFormats)
+    {
+        var texture = device.CreateTexture(
+                                (uint)size.X,
+                                (uint)size.Y,
+                                format,
+                                usage,
+                                sampleCount,
+                                mipLevelCount,
+                                viewFormats);
 
         return texture;
     }

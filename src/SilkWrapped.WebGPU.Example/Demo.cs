@@ -207,16 +207,10 @@ internal class Demo : IDisposable
     {
         depthTexture?.Dispose();
 
-        var depthDescription = new TextureDescriptor
-        {
-            Size = new Extent3D((uint)framebufferSize.X, (uint)framebufferSize.Y, 1),
-            Format = TextureFormat.Depth24Plus,
-            Usage = TextureUsage.RenderAttachment,
-            Dimension = TextureDimension.Dimension2D,
-            SampleCount = 1,
-            MipLevelCount = 1,
-        };
-        depthTexture = Graphics.Device.CreateTexture(in depthDescription);
+        depthTexture = Graphics.Device.CreateTexture(
+            framebufferSize, 
+            TextureFormat.Depth24Plus,
+            TextureUsage.RenderAttachment);
     }
 
     private unsafe void CreateRenderPipeline()
