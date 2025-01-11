@@ -273,13 +273,9 @@ internal class Demo : IDisposable
 
         using var depthView = depthTexture?.CreateView();
 
-        var renderPassDesc = RenderPassDescriptor.Empty
-                                .WithColorAttachment(surfaceTextureView, Color.Black)
-                                .WithDepthStencilAttachment(depthView!);
-
         using var commandEncoder = Graphics.Device!.CreateCommandEncoder();
 
-        using var renderPassEncoder = commandEncoder.BeginRenderPass(in renderPassDesc);
+        using var renderPassEncoder = commandEncoder.BeginRenderPass(surfaceTextureView, depthView!, Color.Black, 1.0f);
         renderPassEncoder.SetPipeline(renderPipeline);
         renderPassEncoder.SetBindGroup(0, modelBindGroup!);
         renderPassEncoder.SetBindGroup(1, cameraBindGroup!);
