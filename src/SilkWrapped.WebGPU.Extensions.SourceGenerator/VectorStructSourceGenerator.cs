@@ -60,11 +60,11 @@ public class VectorStructSourceGenerator : IIncrementalGenerator
             {
                 VertexFormat? vertexFormat = null;
                 var fieldAttributes = member.GetAttributes();
-                
-                foreach(var fieldAttribute in fieldAttributes)
+
+                foreach (var fieldAttribute in fieldAttributes)
                 {
                     if (fieldAttribute.AttributeClass?.GetFullyQualifiedMetadataName() == "SilkWrapped.WebGPU.VertexFormatAttribute" &&
-                        fieldAttribute.ConstructorArguments is [{Value: int format }])
+                        fieldAttribute.ConstructorArguments is [{ Value: int format }])
                     {
                         vertexFormat = (VertexFormat)format;
                         break;
