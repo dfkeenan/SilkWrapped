@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using Silk.NET.WebGPU;
 using Silk.NET.Windowing;
 
 namespace SilkWrapped.WebGPU;
@@ -10,6 +9,7 @@ public struct DeviceManagerOptions
     public BackendType BackendType = BackendType.Undefined;
     public PresentMode PresentMode = PresentMode.Fifo;
     public TextureFormat? SurfaceFormat = null;
+    public TextureFormat? DepthStencilFormat = null;
 
     public static DeviceManagerOptions Default => new();
 
@@ -36,6 +36,13 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
     private PfnDeviceLostCallback deviceLostCallback;
     private PfnErrorCallback errorCallback;
     private PresentMode presentMode;
+
+    private TextureView? currentSurfaceTextureView;
+    private RenderPassEncoder? currentRenderPassEncoder;
+    private CommandEncoder? currentCommandEncoder;
+    private Texture? depthStencilTexture;
+    private TextureView? depthStencilTextureView;
+
     private bool isDisposed;
 
     public SurfaceCapabilities SurfaceCapabilities { get; private set; }
@@ -57,7 +64,8 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         private set;
     }
 
-    public TextureFormat DefaultSurfaceFormat { get; private set; }
+    public TextureFormat SurfaceTextureFormat { get; private set; }
+    public TextureFormat? DepthStencilTextureFormat { get; private set; }
 
     public event Action<ErrorType, string?>? UncapturedError;
     public event Action<DeviceLostReason, string?>? DeviceLost;
@@ -102,21 +110,6 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         Surface.GetCapabilities(adapter, ref surfaceCapabilities);
         SurfaceCapabilities = surfaceCapabilities;
 
-        if (options.SurfaceFormat is TextureFormat format)
-        {
-            if (surfaceCapabilities.Formats?.Contains(format) ?? false)
-            {
-                throw new InvalidOperationException($"Unsuppoted surface format {format}");
-            }
-
-            DefaultSurfaceFormat = format;
-        }
-        else
-        {
-            DefaultSurfaceFormat = SurfaceCapabilities.Formats![0];
-        }
-
-
         DeviceDescriptor deviceDescriptor = new()
         {
             DeviceLostCallback = deviceLostCallback,
@@ -127,6 +120,33 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         Device.SetUncapturedErrorCallback(errorCallback);
 
         Queue = Device.GetQueue();
+
+        if (options.SurfaceFormat is TextureFormat format)
+        {
+            if (surfaceCapabilities.Formats?.Contains(format) ?? false)
+            {
+                throw new InvalidOperationException($"Unsuppoted surface format {format}");
+            }
+
+            SurfaceTextureFormat = format;
+        }
+        else
+        {
+            SurfaceTextureFormat = SurfaceCapabilities.Formats![0];
+        }
+
+        if (options.DepthStencilFormat is TextureFormat depthFormat)
+        {
+            //TODO: DepthStencilFormat validation
+            if (depthFormat is
+                TextureFormat.Depth24Plus or
+                TextureFormat.Depth24PlusStencil8 or
+                TextureFormat.Depth32float)
+            {
+                DepthStencilTextureFormat = depthFormat;
+            }
+            //var features = Device.EnumerateFeatures();
+        }
 
         CreateSwapChain();
     }
@@ -143,14 +163,21 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ResizeSwapChain()
-        => CreateSwapChain();
+    {
+        CreateSwapChain();
+
+        depthStencilTextureView?.Dispose();
+        depthStencilTextureView = null;
+        depthStencilTexture?.Dispose();
+        depthStencilTexture = null;
+    }
 
     public void CreateSwapChain()
     {
         var surfaceConfiguration = new SurfaceConfiguration
         {
             Usage = TextureUsage.RenderAttachment,
-            Format = DefaultSurfaceFormat,
+            Format = SurfaceTextureFormat,
             PresentMode = presentMode,
             Device = Device,
             Width = (uint)view.FramebufferSize.X,
@@ -184,6 +211,75 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         return surfaceTexture.CreateView();
     }
 
+    private TextureView? GetDepthTexture()
+    {
+        if (DepthStencilTextureFormat is not TextureFormat depthFormat) return null;
+
+        if (depthStencilTextureView is TextureView) return depthStencilTextureView;
+
+        depthStencilTextureView?.Dispose();
+        depthStencilTexture?.Dispose();
+
+        depthStencilTexture = Device.CreateTexture(
+            view.FramebufferSize,
+            depthFormat,
+            TextureUsage.RenderAttachment);
+
+        depthStencilTextureView = depthStencilTexture.CreateView();
+
+        return depthStencilTextureView;
+    }
+
+
+    public RenderPassEncoder? TryBeginDraw(
+       Color? clearColor = null,
+       float? depthClearValue = null)
+    {
+        if (currentSurfaceTextureView is not null)
+        {
+            throw new InvalidOperationException($"'{nameof(TryBeginDraw)}' has already been called");
+        }
+
+        currentSurfaceTextureView = GetCurrentSurfaceTextureView();
+        if (currentSurfaceTextureView is null) return null;
+
+        currentCommandEncoder = Device.CreateCommandEncoder();
+
+        if (GetDepthTexture() is TextureView depthTextureView)
+        {
+            currentRenderPassEncoder = currentCommandEncoder.BeginRenderPass(
+                currentSurfaceTextureView,
+                depthTextureView,
+                clearColor,
+                depthClearValue);
+        }
+        else
+        {
+            currentRenderPassEncoder = currentCommandEncoder.BeginRenderPass(currentSurfaceTextureView, clearColor);
+        }
+
+        return currentRenderPassEncoder;
+    }
+
+    public void EndDraw()
+    {
+        if (currentCommandEncoder is null)
+        {
+            throw new InvalidOperationException($"Must call '{TryBeginDraw}' first.");
+        }
+
+        currentRenderPassEncoder!.End();
+        using var commandBuffer = currentCommandEncoder.Finish();
+        Present(commandBuffer);
+
+        currentCommandEncoder?.Dispose();
+        currentCommandEncoder = null;
+        currentRenderPassEncoder?.Dispose();
+        currentRenderPassEncoder = null;
+        currentSurfaceTextureView?.Dispose();
+        currentSurfaceTextureView = null;
+    }
+
     public void Present(params ReadOnlySpan<CommandBufferHandle> buffers)
     {
         Queue.Submit(buffers);
@@ -199,6 +295,14 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
             {
                 // TODO: dispose managed state (managed objects)
             }
+
+            currentCommandEncoder?.Dispose();
+            currentCommandEncoder = null;
+            currentRenderPassEncoder?.Dispose();
+            currentRenderPassEncoder = null;
+
+            depthStencilTextureView?.Dispose();
+            depthStencilTexture?.Dispose();
 
             Queue?.Dispose();
             Device?.Dispose();

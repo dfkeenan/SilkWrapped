@@ -48,8 +48,6 @@ internal class Demo : IDisposable
 
     private ModelBindGroup? modelBindGroup;
     private CameraBindGroup? cameraBindGroup;
-
-    private Texture? depthTexture;
     public GraphicsDeviceManager Graphics { get; set; }
 
     public Demo()
@@ -61,7 +59,12 @@ internal class Demo : IDisposable
         };
 
         window = Window.Create(options);
-        Graphics = new GraphicsDeviceManager(window);
+        Graphics = new GraphicsDeviceManager(
+            window,
+            DeviceManagerOptions.Default with
+            {
+                DepthStencilFormat = TextureFormat.Depth24Plus
+            });
 
         Graphics.DeviceLost += (r, m) =>
         {
@@ -105,8 +108,6 @@ internal class Demo : IDisposable
         sampler?.Dispose();
         shader?.Dispose();
 
-        depthTexture?.Dispose();
-
         Graphics?.Dispose();
         input?.Dispose();
         input = null;
@@ -118,7 +119,6 @@ internal class Demo : IDisposable
     private void FramebufferResize(Vector2D<int> size)
     {
         Graphics.ResizeSwapChain();
-        CreateDepthTexture(size);
         UpdateProjectionMatrix();
     }
 
@@ -126,8 +126,6 @@ internal class Demo : IDisposable
     {
         input = window.CreateInput();
         keyboard = input.Keyboards[0];
-
-        CreateDepthTexture(window.FramebufferSize);
 
         var shaderCode =
             """
@@ -199,18 +197,7 @@ internal class Demo : IDisposable
         indexBuffer = Graphics.Device.CreateBuffer<uint>(BufferUsage.Index | BufferUsage.CopyDst, (ulong)cube.Indices.Length);
         queue.WriteBuffer(indexBuffer, [.. cube.Indices]);
 
-
         CreateRenderPipeline();
-    }
-
-    private void CreateDepthTexture(Vector2D<int> framebufferSize)
-    {
-        depthTexture?.Dispose();
-
-        depthTexture = Graphics.Device.CreateTexture(
-            framebufferSize,
-            TextureFormat.Depth24Plus,
-            TextureUsage.RenderAttachment);
     }
 
     private unsafe void CreateRenderPipeline()
@@ -224,8 +211,8 @@ internal class Demo : IDisposable
                             .WithVertex<Vertex>(shader!, "vs_main")
                             .WithPrimitive(PrimitiveTopology.TriangleList, CullMode.Back)
                             .WithMultisampleState()
-                            .WithFragment(shader!, "fs_main", Graphics.DefaultSurfaceFormat, BlendStates.NonPremultiplied)
-                            .WithDepthStencil(TextureFormat.Depth24Plus, CompareFunction.Less)
+                            .WithFragment(shader!, "fs_main", Graphics.SurfaceTextureFormat, BlendStates.NonPremultiplied)
+                            .WithDepthStencil(Graphics.DepthStencilTextureFormat!.Value, CompareFunction.Less)
                             .Create(Graphics.Device);
     }
 
@@ -250,7 +237,7 @@ internal class Demo : IDisposable
 
         var rotation = Matrix4x4.CreateFromYawPitchRoll((float)Math.Sin(window.Time), (float)Math.Cos(window.Time), 0);
         var translation = Matrix4x4.CreateTranslation(0, (float)Math.Sin(window.Time), 0);
-        modelBindGroup.World = rotation * translation;
+        modelBindGroup!.World = rotation * translation;
 
         totalTime += delta;
         timer.Enqueue(delta);
@@ -268,24 +255,16 @@ internal class Demo : IDisposable
     {
         if (renderPipeline is null || vertexBuffer is null || indexBuffer is null) return;
 
-        using var surfaceTextureView = Graphics.GetCurrentSurfaceTextureView();
-        if (surfaceTextureView is null) return;
+        if (Graphics.TryBeginDraw(Color.Black, 1.0f) is not RenderPassEncoder renderPassEncoder) return;
 
-        using var depthView = depthTexture?.CreateView();
-
-        using var commandEncoder = Graphics.Device!.CreateCommandEncoder();
-
-        using var renderPassEncoder = commandEncoder.BeginRenderPass(surfaceTextureView, depthView!, Color.Black, 1.0f);
         renderPassEncoder.SetPipeline(renderPipeline);
         renderPassEncoder.SetBindGroup(0, modelBindGroup!);
         renderPassEncoder.SetBindGroup(1, cameraBindGroup!);
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.Size);
         renderPassEncoder.SetIndexBuffer(indexBuffer, IndexFormat.Uint32, 0, indexBuffer.Size);
         renderPassEncoder.DrawIndexed((uint)cube.Indices.Length, 1, 0, 0, 0);
-        renderPassEncoder.End();
-        using var commandBuffer = commandEncoder.Finish();
 
-        Graphics.Present(commandBuffer);
+        Graphics.EndDraw();
     }
 }
 
