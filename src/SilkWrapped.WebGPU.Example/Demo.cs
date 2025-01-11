@@ -273,28 +273,9 @@ internal class Demo : IDisposable
 
         using var depthView = depthTexture?.CreateView();
 
-        var renderPassDesc = new RenderPassDescriptor
-        {
-            ColorAttachments =
-            [
-                new RenderPassColorAttachment
-                {
-                    ClearValue = new(0, 0, 0, 1),
-                    DepthSlice = 1,
-                    LoadOp = LoadOp.Clear,
-                    StoreOp = StoreOp.Store,
-                    View = surfaceTextureView,
-                    ResolveTarget = null,
-                }
-            ],
-            DepthStencilAttachment = new()
-            {
-                View = depthView!,
-                DepthClearValue = 1,
-                DepthLoadOp = LoadOp.Clear,
-                DepthStoreOp = StoreOp.Store,
-            }
-        };
+        var renderPassDesc = RenderPassDescriptor.Empty
+                                .WithColorAttachment(surfaceTextureView, Color.Black)
+                                .WithDepthStencilAttachment(depthView!);
 
         using var commandEncoder = Graphics.Device!.CreateCommandEncoder();
 
