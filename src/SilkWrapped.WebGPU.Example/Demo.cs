@@ -284,9 +284,8 @@ internal class Demo : IDisposable
         renderPassEncoder.DrawIndexed((uint)cube.Indices.Length, 1, 0, 0, 0);
         renderPassEncoder.End();
         using var commandBuffer = commandEncoder.Finish();
-        Graphics.Queue!.Submit(commandBuffer);
-        Graphics.Surface.Present();
-        window!.SwapBuffers();
+
+        Graphics.Present(commandBuffer);
     }
 }
 

@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Silk.NET.WebGPU;
 using Silk.NET.Windowing;
 
 namespace SilkWrapped.WebGPU;
@@ -181,6 +182,13 @@ public unsafe partial class GraphicsDeviceManager : IDisposable
         }
 
         return surfaceTexture.CreateView();
+    }
+
+    public void Present(params ReadOnlySpan<CommandBufferHandle> buffers)
+    {
+        Queue.Submit(buffers);
+        Surface.Present();
+        view!.SwapBuffers();
     }
 
     protected virtual void Dispose(bool disposing)
