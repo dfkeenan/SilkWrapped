@@ -1,105 +1,16 @@
 ﻿using System.Numerics;
-using System.Runtime.InteropServices;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
 namespace SilkWrapped.WebGPU.Example;
 
-[VertexStruct]
-[StructLayout(LayoutKind.Sequential)]
-internal readonly partial record struct DemoVertex(Vector3 Position, Vector2 TexCoord, Vector3 Normal, Vector4 Color);
-
-[BindGroup]
-internal partial class DemoCameraBindGroup(Device device)
-{
-    [UniformBinding(ShaderStage.Vertex)]
-    public partial Matrix4x4 View { get; set; }
-
-    [UniformBinding(ShaderStage.Vertex)]
-    public partial Matrix4x4 Projection { get; set; }
-}
-
-[BindGroup]
-internal partial class DemoModelBindGroup(
-     Device device,
-     [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,
-     [SamplerBinding(SamplerBindingType.Filtering, ShaderStage.Fragment)] Sampler sampler)
-{
-    [UniformBinding(ShaderStage.Vertex)]
-    public partial Matrix4x4 World { get; set; }
-}
-
-internal record DemoVertexShader(Device device)
-    : Shader("vs_main", device.CreateShaderModuleWGSL(
-        """
-        struct VertexOutputs {
-            //The position of the vertex
-            @builtin(position) position: vec4<f32>,
-            //The texture cooridnate of the vertex
-            @location(0) tex_coord: vec2<f32>,
-            @location(1) color: vec4<f32>
-        
-        }
-        
-        @group(1) @binding(0) var<uniform> view_matrix: mat4x4<f32>;
-        @group(1) @binding(1) var<uniform> projection_matrix: mat4x4<f32>;
-        @group(0) @binding(2) var<uniform> world_matrix: mat4x4<f32>;
-        
-        
-        @vertex
-        fn vs_main(
-            @location(0) pos: vec3<f32>,
-            @location(1) tex_coord: vec2<f32>,
-            @location(2) normal: vec3<f32>,
-            @location(3) color: vec4<f32>
-        
-        ) -> VertexOutputs {
-            var output: VertexOutputs;
-        
-            var mat = projection_matrix * view_matrix * world_matrix;
-        
-            output.position =  mat * vec4<f32>(pos, 1.0);
-            output.tex_coord = tex_coord;
-            output.color = color;
-            return output;
-        }
-        """));
-
-internal record DemoFragmentShader(Device device)
-    : Shader("fs_main", device.CreateShaderModuleWGSL(
-        """
-        struct VertexOutputs {
-            //The position of the vertex
-            @builtin(position) position: vec4<f32>,
-            //The texture cooridnate of the vertex
-            @location(0) tex_coord: vec2<f32>,
-            @location(1) color: vec4<f32>
-        
-        }
-        
-        //The texture we're sampling
-        @group(0) @binding(0) var t: texture_2d<f32>;
-        //The sampler we're using to sample the texture
-        @group(0) @binding(1) var s: sampler;
-        
-        @fragment
-        fn fs_main(input: VertexOutputs) -> @location(0) vec4<f32> {
-            var color = textureSample(t, s, input.tex_coord);
-        
-            return mix(input.color, vec4<f32>(color.rgb, 1), color.a); 
-        }
-        """));
-
 internal class Demo : IDisposable
 {
     private IWindow window = default!;
     private IInputContext? input;
     private IKeyboard? keyboard;
-    private IShader? vertexShader;
-    private IShader? fragmentShader;
-
-    private RenderPipeline? renderPipeline;
+    private DemoRenderPipeline? renderPipeline;
 
     private MeshData<DemoVertex> cube = Shapes.Cube(new Vector3(3, 3, 3));
     private Buffer<DemoVertex>? vertexBuffer;
@@ -169,8 +80,7 @@ internal class Demo : IDisposable
         textureView?.Dispose();
         texture?.Dispose();
         sampler?.Dispose();
-        vertexShader?.Module.Dispose();
-        fragmentShader?.Module.Dispose();
+        renderPipeline?.Dispose();
 
         Graphics?.Dispose();
         input?.Dispose();
@@ -191,9 +101,6 @@ internal class Demo : IDisposable
         input = window.CreateInput();
         keyboard = input.Keyboards[0];
 
-        vertexShader = new DemoVertexShader(Graphics.Device);
-        fragmentShader = new DemoFragmentShader(Graphics.Device);
-            
         texture = Graphics.Device.LoadTexture("silk.png", TextureFormat.Rgba8Unorm);
         textureView = texture.CreateView();
 
@@ -215,23 +122,10 @@ internal class Demo : IDisposable
         indexBuffer = Graphics.Device.CreateBuffer<uint>(BufferUsage.Index | BufferUsage.CopyDst, (ulong)cube.Indices.Length);
         queue.WriteBuffer(indexBuffer, [.. cube.Indices]);
 
-        CreateRenderPipeline();
-    }
-
-    private unsafe void CreateRenderPipeline()
-    {
-        using var pipelineLayout = Graphics.Device!.CreatePipelineLayout(
-            modelBindGroup,
-            cameraBindGroup);
-
-        renderPipeline = RenderPipelineDescriptor.Empty
-                            .WithLayout(pipelineLayout)
-                            .WithVertex<DemoVertex>(vertexShader!)
-                            .WithPrimitive(PrimitiveTopology.TriangleList, CullMode.Back)
-                            .WithMultisampleState()
-                            .WithFragment(fragmentShader!, Graphics.SurfaceTextureFormat, BlendStates.NonPremultiplied)
-                            .WithDepthStencil(Graphics.DepthStencilTextureFormat!.Value, CompareFunction.Less)
-                            .Create(Graphics.Device);
+        renderPipeline = new DemoRenderPipeline(
+            Graphics.Device,
+            Graphics.SurfaceTextureFormat,
+            Graphics.DepthStencilTextureFormat!.Value);
     }
 
     private unsafe void UpdateProjectionMatrix()

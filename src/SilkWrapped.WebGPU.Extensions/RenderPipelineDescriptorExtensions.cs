@@ -152,8 +152,8 @@ public static class RenderPipelineDescriptorExtensions
         params ReadOnlySpan<ColorTargetState> targets)
     {
         return descriptor.WithFragment(
-            shader.Module, 
-            shader.EntryPoint, 
+            shader.Module,
+            shader.EntryPoint,
             targets);
     }
 
@@ -166,10 +166,10 @@ public static class RenderPipelineDescriptorExtensions
         ColorWriteMask targetWriteMask = ColorWriteMask.All)
     {
         return descriptor.WithFragment(
-            shader.Module, 
-            shader.EntryPoint, 
-            targetFormat, 
-            targetBlend, 
+            shader.Module,
+            shader.EntryPoint,
+            targetFormat,
+            targetBlend,
             targetWriteMask);
     }
 
