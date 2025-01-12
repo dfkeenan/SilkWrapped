@@ -118,4 +118,4 @@ internal record DemoFragmentShader(Device device)
         
             return mix(input.color, vec4<f32>(color.rgb, 1), color.a); 
         }
-        """u8+"\0"u8));
+        """u8 + "\0"u8));
