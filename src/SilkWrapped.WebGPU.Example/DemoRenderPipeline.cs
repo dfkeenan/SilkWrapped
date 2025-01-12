@@ -92,7 +92,7 @@ internal record DemoVertexShader(Device device)
             output.color = color;
             return output;
         }
-        """u8 + "\0"u8));
+        """u8));
 
 internal record DemoFragmentShader(Device device)
     : Shader("fs_main", device.CreateShaderModuleWGSL(
@@ -117,4 +117,4 @@ internal record DemoFragmentShader(Device device)
         
             return mix(input.color, vec4<f32>(color.rgb, 1), color.a); 
         }
-        """u8 + "\0"u8));
+        """u8));
