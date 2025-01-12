@@ -54,6 +54,15 @@ public static class SymbolExtensions
         }
     }
 
+    public static bool ImplementsInterface(this ITypeSymbol typeSymbol, string interfaceMetadataName)
+    {
+        for (int i = 0; i < typeSymbol.Interfaces.Length; i++)
+        {
+            if (typeSymbol.Interfaces[i].GetFullyQualifiedMetadataName() == interfaceMetadataName) return true;
+        }
+        return false;
+    }
+
     public static bool Is(this ITypeSymbol symbol, ITypeSymbol baseType)
     {
         return GetTypes(symbol).Any(t => t.Equals(baseType, SymbolEqualityComparer.Default));

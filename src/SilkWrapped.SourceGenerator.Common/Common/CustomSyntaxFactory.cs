@@ -270,6 +270,9 @@ public static class CustomSyntaxFactory
     public static string CamelCase(string value)
         => char.ToLower(value[0]) + value[1..];
 
+    public static string PascalCase(string value)
+        => char.ToUpper(value[0]) + value[1..];
+
     public static SyntaxToken CamelCase(SyntaxToken value)
         => Identifier(CamelCase(value.Text));
 

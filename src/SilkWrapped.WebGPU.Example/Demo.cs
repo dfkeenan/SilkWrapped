@@ -170,8 +170,8 @@ internal class Demo : IDisposable
         if (Graphics.TryBeginDraw(Color.Black, 1.0f) is not RenderPassEncoder renderPassEncoder) return;
 
         renderPassEncoder.SetPipeline(renderPipeline);
-        renderPassEncoder.SetBindGroup(0, modelBindGroup!);
-        renderPassEncoder.SetBindGroup(1, cameraBindGroup!);
+        renderPassEncoder.SetBindGroup(modelBindGroup!);
+        renderPassEncoder.SetBindGroup(cameraBindGroup!);
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.Size);
         renderPassEncoder.SetIndexBuffer(indexBuffer, IndexFormat.Uint32, 0, indexBuffer.Size);
         renderPassEncoder.DrawIndexed((uint)cube.Indices.Length, 1, 0, 0, 0);

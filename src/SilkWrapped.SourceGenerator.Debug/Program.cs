@@ -17,14 +17,14 @@ namespace SilkWrapped.WebGPU.Example;
 [StructLayout(LayoutKind.Sequential)]
 internal readonly partial record struct Vertex(Vector2 Position, Vector2 TexCoord, [field: VertexFormat(VertexFormat.Force32)]int Test);
 
-[BindGroup]
+[BindGroup(1)]
 internal partial class ProjectionMatrixBindGroup(Device steve)
 {
     [UniformBinding(ShaderStage.Vertex)]
     public partial Matrix4x4 Projection { get; set; }
 }
 
-[BindGroup]
+[BindGroup(0)]
 internal partial class TextureBindGroup(
      Device device,
      [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,

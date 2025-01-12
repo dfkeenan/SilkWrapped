@@ -15,7 +15,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
             "SilkWrapped.WebGPU.BindGroupAttribute",
             predicate: IsCandidate,
             transform: static (ctx, ct)
-                => GetDeclartionInfo(ctx.SemanticModel, ctx.TargetSymbol, ctx.TargetNode))
+                => GetDeclartionInfo(ctx.SemanticModel, ctx.TargetSymbol, ctx.TargetNode, ctx.Attributes))
             .Where(i => i is not null);
 
         context.RegisterSourceOutput(
@@ -45,11 +45,14 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
     private static DeclartionInfo? GetDeclartionInfo(
         SemanticModel semanticModel,
         ISymbol targetSymbol,
-        SyntaxNode targetNode)
+        SyntaxNode targetNode,
+        ImmutableArray<AttributeData> targetAttributes)
     {
         if (targetNode is not ClassDeclarationSyntax decl) return null;
         if (targetSymbol is not INamedTypeSymbol namedType) return null;
         if (decl.ParameterList?.Parameters is not SeparatedSyntaxList<ParameterSyntax> { Count: > 0 } parameters) return null;
+        if (targetAttributes is not [AttributeData bindGroupAttribute]) return null;
+        if (bindGroupAttribute.ConstructorArguments is not [{ Value: uint bindGroupIndex }]) return null;
 
         string? deviceParameterName = null;
         var bindings = ImmutableArray.CreateBuilder<BindingInfo>();
@@ -87,7 +90,14 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
             {
                 if (GetBindingInfo(propertySymbol.Name, propertySymbol.Type, attribute) is not BindingInfo bindingInfo) continue;
 
-                bindings.Add(bindingInfo with { IsProperty = true, Declaration = property.GetDeclaration(bindingInfo.Type) });
+                var isEquatable = propertySymbol.Type.ImplementsInterface("System.IEquatable`1");
+
+                bindings.Add(bindingInfo with
+                {
+                    IsProperty = true,
+                    Declaration = property.GetDeclaration(bindingInfo.Type),
+                    IsEquatable = isEquatable
+                });
             }
 
         }
@@ -95,6 +105,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
         return new DeclartionInfo(
             namedType.Name,
             namedType.ContainingNamespace.ToDisplayString(),
+            bindGroupIndex,
             decl.GetDeclaration(),
             deviceParameterName,
             bindings.ToImmutableArray());
@@ -167,6 +178,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
     {
         public bool IsProperty { get; init; }
         public string? Declaration { get; init; }
+        public bool IsEquatable { get; init; }
     }
 
     private record BufferBindingInfo(string Name, string Type, ShaderStage Visibility, BufferBindingType BufferBindingType, bool HasDynamicOffset)
@@ -181,6 +193,7 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
     private record DeclartionInfo(
         string Name,
         string Namespace,
+        uint bindGroupIndex,
         string Declaration,
         string DeviceParameterName,
         EquatableArray<BindingInfo> Bindings)
@@ -213,13 +226,30 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                     {
                         sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
                         sb.AppendNeverEditorBrowsable();
-                        sb.AppendLine("private Changes __changes = Changes.None;");
+                        if (Bindings.Length > 32)
+                        {
+                            sb.AppendLine("private ulong __changes = 0;");
+                        }
+                        else
+                        {
+                            sb.AppendLine("private uint __changes = 0;");
+                        }
                     }
                     sb.AppendLine();
 
-                    foreach (var binding in Bindings)
+                    for (int i = 0; i < Bindings.Length; i++)
                     {
-                        if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bindingInfo) continue;
+                        var binding = Bindings[i];
+                        if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bindingInfo)
+                        {
+                            if (!binding.IsProperty)
+                            {
+                                sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
+                                sb.AppendLine($"public {binding.Type} {CustomSyntaxFactory.PascalCase(binding.Name)} => {binding.Name};");
+                                sb.AppendLine();
+                            }
+                            continue;
+                        }
 
                         sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
                         sb.AppendNeverEditorBrowsable();
@@ -234,18 +264,29 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                         if (binding.IsProperty && bindingInfo.Declaration is not null)
                         {
                             sb.AppendLine(bindingInfo.Declaration);
+
                             using (sb.BeginBlock())
                             {
                                 sb.AppendLine($"get => __{bindingInfo.Name};");
                                 sb.AppendLine("set");
                                 using (sb.BeginBlock())
                                 {
+                                    if (bindingInfo.IsEquatable)
+                                    {
+                                        sb.AppendLine($"if (global::System.Collections.Generic.EqualityComparer<{bindingInfo.Type}>.Default.Equals(__{bindingInfo.Name}, value)) return;");
+                                    }
                                     sb.AppendLine($"__{bindingInfo.Name} = value;");
-                                    sb.AppendLine($"__changes |= Changes.{bindingInfo.Name};");
+                                    sb.AppendLine($"__changes |= {1u << i};");
                                 }
                             }
                         }
+
+                        sb.AppendLine();
                     }
+
+                    sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
+                    sb.AppendLine($"public static uint BindGroupIndex => {bindGroupIndex};");
+                    sb.AppendLine();
 
 
                     sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator));
@@ -379,18 +420,21 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                         {
                             sb.AppendLine($"using var queue = {deviceName}.GetQueue();");
 
-                            foreach (var binding in Bindings)
+                            for (int i = 0; i < Bindings.Length; i++)
                             {
+                                var binding = Bindings[i];
                                 if (binding is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bufferBindingInfo) continue;
 
-                                sb.AppendLine($"if (__changes.HasFlag(Changes.{binding.Name}))");
+                                var changeFlag = 1u << i;
+
+                                sb.AppendLine($"if ((__changes & {changeFlag}) == {changeFlag})");
                                 using (sb.BeginBlock())
                                 {
                                     sb.AppendLine($"queue.WriteBuffer(__{binding.Name}Buffer, __{binding.Name});");
                                 }
                             }
 
-                            sb.AppendLine().AppendLine($"__changes = Changes.None;");
+                            sb.AppendLine().AppendLine($"__changes = 0;");
                         }
                     }
                     sb.AppendLine();
@@ -457,24 +501,6 @@ public class BindGroupSourceGenerator : IIncrementalGenerator
                     {
                         sb.AppendLine($"obj.CreateBindGroup();")
                           .AppendLine($"return obj.{groupName};");
-                    }
-
-                    if (hasBuffers)
-                    {
-                        sb.AppendCompilerGenerated(nameof(BindGroupSourceGenerator), false);
-                        sb.AppendNeverEditorBrowsable();
-                        sb.AppendLine($"[global::System.Flags]");
-                        sb.AppendLine($"private enum Changes");
-                        using (sb.BeginBlock())
-                        {
-                            sb.AppendLine($"None = 0,");
-                            for (int i = 0; i < Bindings.Length; i++)
-                            {
-                                if (Bindings[i] is not BufferBindingInfo { BufferBindingType: BufferBindingType.Uniform } bufferBindingInfo) continue;
-
-                                sb.AppendLine($"{bufferBindingInfo.Name} = 1 << {i},");
-                            }
-                        }
                     }
                 }
             }

@@ -3,6 +3,7 @@
 public interface IBindGroup<TBindGroup> : IEquatable<TBindGroup>, IDisposable
     where TBindGroup : class, IBindGroup<TBindGroup>
 {
+    static abstract uint BindGroupIndex { get; }
     BindGroupLayout Layout { get; }
     void ApplyChanges();
 
@@ -13,7 +14,10 @@ public interface IBindGroup<TBindGroup> : IEquatable<TBindGroup>, IDisposable
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-public sealed class BindGroupAttribute : Attribute;
+public sealed class BindGroupAttribute(uint bindGroupIndex) : Attribute
+{
+    public uint BindGroupIndex { get; } = bindGroupIndex;
+}
 
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property, AllowMultiple = false)]
 public abstract class BindingAttribute(ShaderStage visibility) : Attribute

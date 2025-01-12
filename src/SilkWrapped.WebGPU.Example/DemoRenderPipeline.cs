@@ -6,7 +6,7 @@ namespace SilkWrapped.WebGPU.Example;
 [StructLayout(LayoutKind.Sequential)]
 internal readonly partial record struct DemoVertex(Vector3 Position, Vector2 TexCoord, Vector3 Normal, Vector4 Color);
 
-[BindGroup]
+[BindGroup(1)]
 internal partial class DemoCameraBindGroup(Device device)
 {
     [UniformBinding(ShaderStage.Vertex)]
@@ -16,7 +16,7 @@ internal partial class DemoCameraBindGroup(Device device)
     public partial Matrix4x4 Projection { get; set; }
 }
 
-[BindGroup]
+[BindGroup(0)]
 internal partial class DemoModelBindGroup(
      Device device,
      [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,
