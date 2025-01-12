@@ -8,10 +8,10 @@ namespace SilkWrapped.WebGPU.Example;
 
 [VertexStruct]
 [StructLayout(LayoutKind.Sequential)]
-internal readonly partial record struct Vertex(Vector3 Position, Vector2 TexCoord, Vector3 Normal, Vector4 Color);
+internal readonly partial record struct DemoVertex(Vector3 Position, Vector2 TexCoord, Vector3 Normal, Vector4 Color);
 
 [BindGroup]
-internal partial class CameraBindGroup(Device device)
+internal partial class DemoCameraBindGroup(Device device)
 {
     [UniformBinding(ShaderStage.Vertex)]
     public partial Matrix4x4 View { get; set; }
@@ -21,7 +21,7 @@ internal partial class CameraBindGroup(Device device)
 }
 
 [BindGroup]
-internal partial class ModelBindGroup(
+internal partial class DemoModelBindGroup(
      Device device,
      [TextureBinding(TextureSampleType.Float, TextureViewDimension.Dimension2D, ShaderStage.Fragment)] TextureView textureView,
      [SamplerBinding(SamplerBindingType.Filtering, ShaderStage.Fragment)] Sampler sampler)
@@ -30,24 +30,87 @@ internal partial class ModelBindGroup(
     public partial Matrix4x4 World { get; set; }
 }
 
+internal record DemoVertexShader(Device device)
+    : Shader("vs_main", device.CreateShaderModuleWGSL(
+        """
+        struct VertexOutputs {
+            //The position of the vertex
+            @builtin(position) position: vec4<f32>,
+            //The texture cooridnate of the vertex
+            @location(0) tex_coord: vec2<f32>,
+            @location(1) color: vec4<f32>
+        
+        }
+        
+        @group(1) @binding(0) var<uniform> view_matrix: mat4x4<f32>;
+        @group(1) @binding(1) var<uniform> projection_matrix: mat4x4<f32>;
+        @group(0) @binding(2) var<uniform> world_matrix: mat4x4<f32>;
+        
+        
+        @vertex
+        fn vs_main(
+            @location(0) pos: vec3<f32>,
+            @location(1) tex_coord: vec2<f32>,
+            @location(2) normal: vec3<f32>,
+            @location(3) color: vec4<f32>
+        
+        ) -> VertexOutputs {
+            var output: VertexOutputs;
+        
+            var mat = projection_matrix * view_matrix * world_matrix;
+        
+            output.position =  mat * vec4<f32>(pos, 1.0);
+            output.tex_coord = tex_coord;
+            output.color = color;
+            return output;
+        }
+        """));
+
+internal record DemoFragmentShader(Device device)
+    : Shader("fs_main", device.CreateShaderModuleWGSL(
+        """
+        struct VertexOutputs {
+            //The position of the vertex
+            @builtin(position) position: vec4<f32>,
+            //The texture cooridnate of the vertex
+            @location(0) tex_coord: vec2<f32>,
+            @location(1) color: vec4<f32>
+        
+        }
+        
+        //The texture we're sampling
+        @group(0) @binding(0) var t: texture_2d<f32>;
+        //The sampler we're using to sample the texture
+        @group(0) @binding(1) var s: sampler;
+        
+        @fragment
+        fn fs_main(input: VertexOutputs) -> @location(0) vec4<f32> {
+            var color = textureSample(t, s, input.tex_coord);
+        
+            return mix(input.color, vec4<f32>(color.rgb, 1), color.a); 
+        }
+        """));
+
 internal class Demo : IDisposable
 {
     private IWindow window = default!;
     private IInputContext? input;
     private IKeyboard? keyboard;
-    private ShaderModule? shader;
+    private IShader? vertexShader;
+    private IShader? fragmentShader;
+
     private RenderPipeline? renderPipeline;
 
-    private MeshData<Vertex> cube = Shapes.Cube(new Vector3(3, 3, 3));
-    private Buffer<Vertex>? vertexBuffer;
+    private MeshData<DemoVertex> cube = Shapes.Cube(new Vector3(3, 3, 3));
+    private Buffer<DemoVertex>? vertexBuffer;
     private Buffer<uint>? indexBuffer;
 
     private Texture? texture;
     private TextureView? textureView;
     private Sampler? sampler;
 
-    private ModelBindGroup? modelBindGroup;
-    private CameraBindGroup? cameraBindGroup;
+    private DemoModelBindGroup? modelBindGroup;
+    private DemoCameraBindGroup? cameraBindGroup;
     public GraphicsDeviceManager Graphics { get; set; }
 
     public Demo()
@@ -106,7 +169,8 @@ internal class Demo : IDisposable
         textureView?.Dispose();
         texture?.Dispose();
         sampler?.Dispose();
-        shader?.Dispose();
+        vertexShader?.Module.Dispose();
+        fragmentShader?.Module.Dispose();
 
         Graphics?.Dispose();
         input?.Dispose();
@@ -127,71 +191,25 @@ internal class Demo : IDisposable
         input = window.CreateInput();
         keyboard = input.Keyboards[0];
 
-        var shaderCode =
-            """
-            struct VertexOutputs {
-                //The position of the vertex
-                @builtin(position) position: vec4<f32>,
-                //The texture cooridnate of the vertex
-                @location(0) tex_coord: vec2<f32>,
-                @location(1) color: vec4<f32>
+        vertexShader = new DemoVertexShader(Graphics.Device);
+        fragmentShader = new DemoFragmentShader(Graphics.Device);
             
-            }
-
-            @group(1) @binding(0) var<uniform> view_matrix: mat4x4<f32>;
-            @group(1) @binding(1) var<uniform> projection_matrix: mat4x4<f32>;
-            
-
-            @vertex
-            fn vs_main(
-                @location(0) pos: vec3<f32>,
-                @location(1) tex_coord: vec2<f32>,
-                @location(2) normal: vec3<f32>,
-                @location(3) color: vec4<f32>
-            
-            ) -> VertexOutputs {
-                var output: VertexOutputs;
-
-                var mat = projection_matrix * view_matrix * world_matrix;
-
-                output.position =  mat * vec4<f32>(pos, 1.0);
-                output.tex_coord = tex_coord;
-                output.color = color;
-                return output;
-            }
-
-            //The texture we're sampling
-            @group(0) @binding(0) var t: texture_2d<f32>;
-            //The sampler we're using to sample the texture
-            @group(0) @binding(1) var s: sampler;
-            @group(0) @binding(2) var<uniform> world_matrix: mat4x4<f32>;
-
-            @fragment
-            fn fs_main(input: VertexOutputs) -> @location(0) vec4<f32> {
-                var color = textureSample(t, s, input.tex_coord);
-
-                return mix(input.color, vec4<f32>(color.rgb, 1), color.a); 
-            }
-            """;
-
-        shader = Graphics.Device.CreateShaderModuleWGSL(shaderCode);
-
         texture = Graphics.Device.LoadTexture("silk.png", TextureFormat.Rgba8Unorm);
         textureView = texture.CreateView();
 
         sampler = Graphics.Device.CreateSampler(FilterMode.Linear, MipmapFilterMode.Linear);
 
-        modelBindGroup = new ModelBindGroup(Graphics.Device, textureView, sampler)
+        modelBindGroup = new DemoModelBindGroup(Graphics.Device, textureView, sampler)
         {
             World = Matrix4x4.Identity,
         };
-        cameraBindGroup = new CameraBindGroup(Graphics.Device);
+        cameraBindGroup = new DemoCameraBindGroup(Graphics.Device);
         UpdateProjectionMatrix();
 
         //Get a queue
         using var queue = Graphics.Device.GetQueue();
 
-        vertexBuffer = Graphics.Device.CreateBuffer<Vertex>(BufferUsage.Vertex | BufferUsage.CopyDst, (ulong)cube.Verticies.Length);
+        vertexBuffer = Graphics.Device.CreateBuffer<DemoVertex>(BufferUsage.Vertex | BufferUsage.CopyDst, (ulong)cube.Verticies.Length);
         queue.WriteBuffer(vertexBuffer, [.. cube.Verticies]);
 
         indexBuffer = Graphics.Device.CreateBuffer<uint>(BufferUsage.Index | BufferUsage.CopyDst, (ulong)cube.Indices.Length);
@@ -208,10 +226,10 @@ internal class Demo : IDisposable
 
         renderPipeline = RenderPipelineDescriptor.Empty
                             .WithLayout(pipelineLayout)
-                            .WithVertex<Vertex>(shader!, "vs_main")
+                            .WithVertex<DemoVertex>(vertexShader!)
                             .WithPrimitive(PrimitiveTopology.TriangleList, CullMode.Back)
                             .WithMultisampleState()
-                            .WithFragment(shader!, "fs_main", Graphics.SurfaceTextureFormat, BlendStates.NonPremultiplied)
+                            .WithFragment(fragmentShader!, Graphics.SurfaceTextureFormat, BlendStates.NonPremultiplied)
                             .WithDepthStencil(Graphics.DepthStencilTextureFormat!.Value, CompareFunction.Less)
                             .Create(Graphics.Device);
     }
@@ -293,9 +311,9 @@ internal static class Shapes
         new Vector2(0, 0),
     };
 
-    public static MeshData<Vertex> Cube(Vector3 size, float uScale = 1.0f, float vScale = 1.0f, Vector4? color = null, bool toLeftHanded = false)
+    public static MeshData<DemoVertex> Cube(Vector3 size, float uScale = 1.0f, float vScale = 1.0f, Vector4? color = null, bool toLeftHanded = false)
     {
-        var vertices = new Vertex[CubeFaceCount * 4];
+        var vertices = new DemoVertex[CubeFaceCount * 4];
         var indices = new uint[CubeFaceCount * 6];
 
         var texCoords = new Vector2[4];
@@ -331,13 +349,13 @@ internal static class Shapes
             indices[indexCount++] = (vbase + 3);
 
             // Four vertices per face.
-            vertices[vertexCount++] = new Vertex((normal - side1 - side2) * size, texCoords[0], normal, color ?? new Vector4(1, 1, 1, 1));
-            vertices[vertexCount++] = new Vertex((normal - side1 + side2) * size, texCoords[1], normal, color ?? new Vector4(1, 1, 1, 1));
-            vertices[vertexCount++] = new Vertex((normal + side1 + side2) * size, texCoords[2], normal, color ?? new Vector4(1, 1, 1, 1));
-            vertices[vertexCount++] = new Vertex((normal + side1 - side2) * size, texCoords[3], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new DemoVertex((normal - side1 - side2) * size, texCoords[0], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new DemoVertex((normal - side1 + side2) * size, texCoords[1], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new DemoVertex((normal + side1 + side2) * size, texCoords[2], normal, color ?? new Vector4(1, 1, 1, 1));
+            vertices[vertexCount++] = new DemoVertex((normal + side1 - side2) * size, texCoords[3], normal, color ?? new Vector4(1, 1, 1, 1));
         }
 
         // Create the primitive object.
-        return new MeshData<Vertex>(vertices, indices, toLeftHanded);
+        return new MeshData<DemoVertex>(vertices, indices, toLeftHanded);
     }
 }

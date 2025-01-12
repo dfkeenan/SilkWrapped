@@ -43,6 +43,25 @@ public static class RenderPipelineDescriptorExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RenderPipelineDescriptor WithVertex(
+        this in RenderPipelineDescriptor descriptor,
+        IShader shader,
+        params ReadOnlySpan<VertexBufferLayout> buffers)
+    {
+        return descriptor.WithVertex(shader.Module, shader.EntryPoint, buffers);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RenderPipelineDescriptor WithVertex<TVertex>(
+        this in RenderPipelineDescriptor descriptor,
+        IShader shader)
+        where TVertex : unmanaged, IVertexStruct
+    {
+        return descriptor.WithVertex(shader, [TVertex.GetLayout()]);
+    }
+
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RenderPipelineDescriptor WithPrimitive(
         this in RenderPipelineDescriptor descriptor,
         PrimitiveTopology topology,
@@ -79,6 +98,7 @@ public static class RenderPipelineDescriptorExtensions
             }
         };
     }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static RenderPipelineDescriptor WithFragment(
         this in RenderPipelineDescriptor descriptor,
@@ -123,6 +143,34 @@ public static class RenderPipelineDescriptorExtensions
                 ]
             }
         };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RenderPipelineDescriptor WithFragment(
+        this in RenderPipelineDescriptor descriptor,
+        IShader shader,
+        params ReadOnlySpan<ColorTargetState> targets)
+    {
+        return descriptor.WithFragment(
+            shader.Module, 
+            shader.EntryPoint, 
+            targets);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static RenderPipelineDescriptor WithFragment(
+        this in RenderPipelineDescriptor descriptor,
+        IShader shader,
+        TextureFormat targetFormat,
+        BlendState targetBlend,
+        ColorWriteMask targetWriteMask = ColorWriteMask.All)
+    {
+        return descriptor.WithFragment(
+            shader.Module, 
+            shader.EntryPoint, 
+            targetFormat, 
+            targetBlend, 
+            targetWriteMask);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
