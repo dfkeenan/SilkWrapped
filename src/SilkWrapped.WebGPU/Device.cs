@@ -5,7 +5,7 @@ public unsafe partial class Device
     {
         var wgslDescriptor = new Silk.NET.WebGPU.ShaderModuleWGSLDescriptor
         {
-            Code = (byte*)SilkMarshal.StringToPtr(code),
+            Code = (byte*)SilkMarshal.StringToPtr(code, NativeStringEncoding.UTF8),
             Chain = new Silk.NET.WebGPU.ChainedStruct
             {
                 SType = Silk.NET.WebGPU.SType.ShaderModuleWgslDescriptor
@@ -22,6 +22,31 @@ public unsafe partial class Device
         SilkMarshal.FreeString((nint)wgslDescriptor.Code);
 
         return new ShaderModule(WebGPU, result);
+    }
+
+    public ShaderModule CreateShaderModuleWGSL(ReadOnlySpan<byte> code)
+    {
+        fixed (byte* codePtr = code)
+        {
+            var wgslDescriptor = new Silk.NET.WebGPU.ShaderModuleWGSLDescriptor
+            {
+                Code = codePtr,
+                Chain = new Silk.NET.WebGPU.ChainedStruct
+                {
+                    SType = Silk.NET.WebGPU.SType.ShaderModuleWgslDescriptor
+                }
+            };
+
+            var shaderModuleDescriptor = new Silk.NET.WebGPU.ShaderModuleDescriptor
+            {
+                NextInChain = (Silk.NET.WebGPU.ChainedStruct*)(&wgslDescriptor),
+            };
+
+            var result = WebGPU.DeviceCreateShaderModule(Handle, in shaderModuleDescriptor);
+
+            return new ShaderModule(WebGPU, result);
+
+        }
     }
 
     public PipelineLayout CreatePipelineLayout(string label, params ReadOnlySpan<BindGroupLayoutHandle> bindGroupLayouts)
@@ -88,6 +113,19 @@ public unsafe partial class Device
 
         return CreateTexture(in description);
     }
+
+    //public IEnumerable<FeatureName> EnumerateFeatures()
+    //{
+    //    //var featureCount = EnumerateFeatures(ref Unsafe.NullRef<FeatureName>());
+    //    //var featureNames = new FeatureName[featureCount];
+    //    //EnumerateFeatures(ref featureNames[0]);
+    //    //return featureNames;
+    //    //ref Silk.NET.WebGPU.FeatureName featureNames;
+    //    var featureCount = WebGPU.DeviceEnumerateFeatures(Handle, null);
+
+
+    //    return null;
+    //}
 
     partial void Disposing()
     {

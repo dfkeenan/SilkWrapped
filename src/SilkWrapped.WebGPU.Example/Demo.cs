@@ -136,7 +136,7 @@ internal class Demo : IDisposable
                 window.FramebufferSize.X / window.FramebufferSize.Y,
                 0.1f,
                 100.0f);
-
+        
         cameraBindGroup.View = Matrix4x4.CreateLookAt(new(0, 5, 5), new Vector3(0, 0, 0), Vector3.UnitY);
     }
 
