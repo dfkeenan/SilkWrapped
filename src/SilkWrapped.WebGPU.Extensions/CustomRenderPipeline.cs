@@ -3,7 +3,9 @@ public abstract class CustomRenderPipeline : IEquatable<CustomRenderPipeline>, I
 {
     private bool disposedValue;
 
-    public RenderPipeline RenderPipeline { get; protected set; }
+    public RenderPipeline RenderPipeline { get => field ??= CreatePipeline(); }
+
+    protected abstract RenderPipeline CreatePipeline();
 
     public bool Equals(CustomRenderPipeline? other)
     {

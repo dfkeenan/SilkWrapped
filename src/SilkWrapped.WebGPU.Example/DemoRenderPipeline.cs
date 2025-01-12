@@ -26,28 +26,27 @@ internal partial class DemoModelBindGroup(
     public partial Matrix4x4 World { get; set; }
 }
 
-internal class DemoRenderPipeline : CustomRenderPipeline
+internal class DemoRenderPipeline(Device device, TextureFormat surfaceFormat, TextureFormat depthFormat) : CustomRenderPipeline
 {
-    private readonly DemoVertexShader vertexShader;
-    private readonly DemoFragmentShader fragmentShader;
-    public DemoRenderPipeline(Device device, TextureFormat surfaceFormat, TextureFormat depthFormat)
-    {
-        vertexShader = new DemoVertexShader(device);
-        fragmentShader = new DemoFragmentShader(device);
+    private readonly DemoVertexShader vertexShader = new(device);
+    private readonly DemoFragmentShader fragmentShader = new(device);
 
+    protected override RenderPipeline CreatePipeline()
+    {
         //TODO: Share/Reuse BindGroupLayouts and PipelineLayouts
         using var modelBindGroupLayout = DemoModelBindGroup.CreateLayout(device);
+
         using var cameraBindGroupLayout = DemoCameraBindGroup.CreateLayout(device);
         using var pipelineLayout = device.CreatePipelineLayout(
             modelBindGroupLayout,
             cameraBindGroupLayout);
 
-        RenderPipeline = RenderPipelineDescriptor.Empty
+        return RenderPipelineDescriptor.Empty
                             .WithLayout(pipelineLayout)
-                            .WithVertex<DemoVertex>(vertexShader!)
+                            .WithVertex<DemoVertex>(vertexShader)
                             .WithPrimitive(PrimitiveTopology.TriangleList, CullMode.Back)
                             .WithMultisampleState()
-                            .WithFragment(fragmentShader!, surfaceFormat, BlendStates.NonPremultiplied)
+                            .WithFragment(fragmentShader, surfaceFormat, BlendStates.NonPremultiplied)
                             .WithDepthStencil(depthFormat, CompareFunction.Less)
                             .Create(device);
     }
