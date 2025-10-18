@@ -128,7 +128,7 @@ internal class Demo : IDisposable
             Graphics.DepthStencilTextureFormat!.Value);
     }
 
-    private unsafe void UpdateProjectionMatrix()
+    private void UpdateProjectionMatrix()
     {
         cameraBindGroup!.Projection
             = Matrix4x4.CreatePerspectiveFieldOfView(
@@ -157,7 +157,7 @@ internal class Demo : IDisposable
         var fps = timer.Count;
 
         window.Title = $"WebGPU - FPS: {fps}";
-
+        
     }
 
     private double totalTime = 0;
@@ -175,7 +175,7 @@ internal class Demo : IDisposable
         renderPassEncoder.SetVertexBuffer(0, vertexBuffer, 0, vertexBuffer.Size);
         renderPassEncoder.SetIndexBuffer(indexBuffer, IndexFormat.Uint32, 0, indexBuffer.Size);
         renderPassEncoder.DrawIndexed((uint)cube.Indices.Length, 1, 0, 0, 0);
-
+        
         Graphics.EndDraw();
     }
 }
