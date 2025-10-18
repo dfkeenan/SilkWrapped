@@ -45,7 +45,7 @@
         },
         {
           "$type": "BytePointerToString",
-          "ExcludeNames": [ ]
+          "ExcludeNames": []
         },
         {
           "$type": "RemoveChainingStruct"
@@ -113,6 +113,10 @@
           "Names": [ "GetProcAddress", "DeviceCreateShaderModule", "TryGetDeviceExtension", "IsDeviceExtensionPresent" ]
         },
         {
+          "$type": "AddUsingDirectivies",
+          "Names": [ "System.Runtime.CompilerServices" ]
+        },
+        {
           "$type": "AddObjectModelHandle"
         },
         {
@@ -158,6 +162,9 @@
           "Priority": [ "Destroy", "Release" ]
         }
       ]
+    },
+    {
+      "$type": "RemoveUnsusedUsingDirectives"
     }
   ]
 }

@@ -43,26 +43,26 @@ internal class Decompiler
                 .Where(r => r is not null)
                 .ToDictionary(r => Path.GetFileNameWithoutExtension(r.Display!), r => r.Display!);
 
-        public PEFile? Resolve(IAssemblyReference reference)
+        public MetadataFile? Resolve(IAssemblyReference reference)
         {
             throw new NotImplementedException();
         }
 
-        public Task<PEFile?> ResolveAsync(IAssemblyReference reference)
+        public Task<MetadataFile?> ResolveAsync(IAssemblyReference reference)
         {
             if (assemblyMap.TryGetValue(reference.Name, out var assembly))
             {
-                return Task.FromResult<PEFile?>(new PEFile(assembly));
+                return Task.FromResult<MetadataFile?>(new PEFile(assembly));
             }
-            return Task.FromResult<PEFile?>(null);
+            return Task.FromResult<MetadataFile?>(null);
         }
 
-        public PEFile? ResolveModule(PEFile mainModule, string moduleName)
+        public MetadataFile? ResolveModule(MetadataFile mainModule, string moduleName)
         {
             throw new NotImplementedException();
         }
 
-        public Task<PEFile?> ResolveModuleAsync(PEFile mainModule, string moduleName)
+        public Task<MetadataFile?> ResolveModuleAsync(MetadataFile mainModule, string moduleName)
         {
             throw new NotImplementedException();
         }

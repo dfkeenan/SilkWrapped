@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using Silk.NET.Core;
+using System.Runtime.CompilerServices;
 
 namespace SilkWrapped.WebGPU;
 public unsafe readonly struct AdapterHandle : IEquatable<AdapterHandle>
@@ -157,7 +157,7 @@ public unsafe partial class Adapter : IEquatable<Adapter>, System.IDisposable
     }
 
     public override int GetHashCode() => Handle.GetHashCode();
-    public void Dispose()
+    public void  Dispose()
     {
         if (Handle.IsEmpty)
             return;

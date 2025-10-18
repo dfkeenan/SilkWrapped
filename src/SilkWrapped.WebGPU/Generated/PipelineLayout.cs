@@ -69,7 +69,7 @@ public unsafe partial class PipelineLayout : IEquatable<PipelineLayout>, System.
     }
 
     public override int GetHashCode() => Handle.GetHashCode();
-    public void Dispose()
+    public void  Dispose()
     {
         if (Handle.IsEmpty)
             return;

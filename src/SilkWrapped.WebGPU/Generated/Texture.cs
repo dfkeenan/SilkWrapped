@@ -138,7 +138,7 @@ public unsafe partial class Texture : IEquatable<Texture>, System.IDisposable
     }
 
     public override int GetHashCode() => Handle.GetHashCode();
-    public void Dispose()
+    public void  Dispose()
     {
         if (Handle.IsEmpty)
             return;

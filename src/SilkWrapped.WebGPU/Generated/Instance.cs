@@ -105,7 +105,7 @@ public unsafe partial class Instance : IEquatable<Instance>, System.IDisposable
     }
 
     public override int GetHashCode() => Handle.GetHashCode();
-    public void Dispose()
+    public void  Dispose()
     {
         if (Handle.IsEmpty)
             return;
